@@ -1,48 +1,48 @@
 [package]
-name = "easel"
-version = "1.0.0"
 authors = ["Siddharth Atre <sid.atre@me.com>"]
+description = "A shader playground for creating high resolution digital paintings."
 edition = "2018"
 keywords = [
-    "shaders",
-    "painting",
-    "computer graphics",
-    "art",
-    "shadertoy",
-    "gamedev",
-    "creative coding",
+  "shaders",
+  "painting",
+  "computer graphics",
+  "art",
+  "shadertoy",
+  "gamedev",
+  "creative coding",
 ]
 license-file = "LICENSE"
-description = "A shader playground for creating high resolution digital paintings."
-repository = "https://github.com/Satre95/Easel"
+name = "easel"
 readme = "README.md"
+repository = "https://github.com/Satre95/Easel"
+version = "1.0.0"
 
 [dependencies]
-image = "0.23.12"
-winit = "0.23.0"
+byteorder = "1.3.4"
+chrono = "0.4.19"
+clap = "3.0.0-beta.2"
+env_logger = "0.8.2"
 futures = "0.3.8"
+half = "1.6.0"
+image = "0.23.12"
+imgui = "0.6.1"
+imgui-wgpu = "0.12.0"
+imgui-winit-support = "0.6.1"
+json = "0.12.4"
+log = "0.4.11"
+notify = "4.0.15"
 raw-window-handle = "0.3.3"
 shaderc = "0.7.0"
-clap = "3.0.0-beta.2"
 stopwatch = "0.0.7"
-chrono = "0.4.19"
-imgui = "0.6.0"
-imgui-wgpu = "0.12"
-imgui-winit-support = "0.6"
-byteorder = "1.3.4"
-notify = "4.0.15"
-json = "0.12.4"
-half = "1.6.0"
-log = "0.4.11"
-env_logger = "0.8.2"
+winit = "0.24.0"
 
 #[dependencies.noise]
 #version = "0.6"
 #features = ["image"]
 
 [dependencies.bytemuck]
-version = "1.4.1"
 features = ["derive"]
+version = "1.4.1"
 
 [dependencies.wgpu]
 version = "0.6.2"
