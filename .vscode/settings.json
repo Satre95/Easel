@@ -1,0 +1,5 @@
+{
+    "editor.formatOnSave": true,
+    "glsllint.glslangValidatorArgs": "-V",
+    "cmake.configureOnOpen": false
+}

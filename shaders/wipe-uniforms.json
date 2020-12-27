@@ -1,0 +1,8 @@
+{
+  "uniforms": {
+    "vertical": [
+      "bool",
+      false
+    ]
+  }
+}

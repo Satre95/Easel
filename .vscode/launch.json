@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Color Wipe",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=easel",
+                ],
+                "filter": {
+                    "name": "easel",
+                    "kind": "bin"
+                }
+            },
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "easel=info"
+            },
+            "args": [
+                "shaders/color-wipe.frag",
+                "-w",
+                "1024",
+                "-h",
+                "1024",
+                "-u",
+                "shaders/wipe-uniforms.json"
+            ],
+        }
+    ]
+}
