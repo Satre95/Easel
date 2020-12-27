@@ -1,16 +1,20 @@
 [package]
 authors = ["Siddharth Atre <sid.atre@me.com>"]
+categories = [
+  "game-development",
+  "graphics",
+  "multimedia",
+  "visualization",
+]
 description = "A shader playground for creating high resolution digital paintings."
 edition = "2018"
 exclude = [".vscode/*", "RenderDoc Capture Settings.cap"]
 keywords = [
   "shaders",
   "painting",
-  "computer graphics",
   "art",
   "shadertoy",
-  "gamedev",
-  "creative coding",
+  "creative-coding",
 ]
 license-file = "LICENSE"
 name = "easel"
