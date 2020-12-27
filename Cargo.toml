@@ -2,6 +2,7 @@
 authors = ["Siddharth Atre <sid.atre@me.com>"]
 description = "A shader playground for creating high resolution digital paintings."
 edition = "2018"
+exclude = [".vscode/*"]
 keywords = [
   "shaders",
   "painting",
