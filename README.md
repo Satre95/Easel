@@ -20,4 +20,4 @@ Detailed documentation is available on docs.rs.
 ## Building Otium
 Internally, Otium uses the [shaderc](https://github.com/google/shaderc-rs) crate, which in turn uses a C++ library. This requires [CMake](https://cmake.org), [Python](https://python.org) and [Ninja](https://ninja-build.org/) to be installed. 
 
-Once you have all the dependencies installed, simply build with Cargo. I recommend building in Release mode for performance.python
+Once you have all the dependencies installed, simply build with Cargo. I recommend building in Release mode for performance.
