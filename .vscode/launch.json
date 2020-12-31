@@ -11,16 +11,16 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=easel",
+                    "--bin=otium",
                 ],
                 "filter": {
-                    "name": "easel",
+                    "name": "otium",
                     "kind": "bin"
                 }
             },
             "cwd": "${workspaceFolder}",
             "env": {
-                "RUST_LOG": "easel=info"
+                "RUST_LOG": "otium=info"
             },
             "args": [
                 "shaders/color-wipe.frag",

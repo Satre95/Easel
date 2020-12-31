@@ -32,7 +32,7 @@ pub static PAINTING_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R
 static POST_PROCESS_SRGB_SHADER_BYTES: &[u8] =
     include_bytes!("../../shaders/post-process-srgb.spv");
 
-/// Central class for the painting on the Easel.
+/// Central class for the painting on the Otium.
 /// Sends & receives messages to/from Dashboard.
 /// Provides file watching capabilities for shader and/or custom uniforms.
 pub struct Canvas {
