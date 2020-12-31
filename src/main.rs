@@ -316,8 +316,8 @@ fn main() {
 /// Sets up all arguments to be parsed by Otium
 fn setup_program_args() -> clap::ArgMatches {
     App::new("Otium")
-        .version("0.1.0")
-        .author("Siddharth A. <sidatre@gmail.com>")
+        .version("1.0.1")
+        .author("Siddharth A. <sid.atre@me.com>")
         .arg(
             Arg::new("shader")
                 .about("The fragment shader to use.")
