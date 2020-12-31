@@ -17,9 +17,9 @@ keywords = [
   "creative-coding",
 ]
 license-file = "LICENSE"
-name = "easel"
+name = "otium"
 readme = "README.md"
-repository = "https://github.com/Satre95/Easel"
+repository = "https://github.com/Satre95/Otium"
 version = "1.0.0"
 
 [dependencies]

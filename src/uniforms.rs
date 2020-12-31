@@ -8,7 +8,7 @@ use log::error;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
-/// A struct of uniforms provided by Easel and bound to every shader.
+/// A struct of uniforms provided by Otium and bound to every shader.
 pub struct Uniforms {
     /// Viewport resolution (in pixels)
     pub resolution: Vector4,
