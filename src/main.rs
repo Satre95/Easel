@@ -123,6 +123,7 @@ mod vector;
 use crate::canvas::message::CanvasMessage;
 use crate::dashboard::{Dashboard, DashboardMessage};
 use canvas::Canvas;
+use ffmpeg_next as ffmpeg;
 use std::cmp::max;
 use std::fs;
 use std::path::Path;
@@ -131,6 +132,7 @@ use winit::dpi::PhysicalSize;
 
 fn main() {
     env_logger::init();
+    ffmpeg::init().unwrap();
     // Load command line args.
     let matches = setup_program_args();
 
