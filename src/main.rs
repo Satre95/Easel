@@ -101,6 +101,17 @@
 //! When built for macOS, Easel also has the option to automatically open rendered paintings in the default system image viewer.
 //! This option can be toggled in the GUI.
 
+mod canvas;
+mod dashboard;
+mod postprocessing;
+mod push_constants;
+mod recording;
+mod skeletons;
+mod texture;
+mod uniforms;
+mod utils;
+mod vector;
+
 use clap::{App, Arg};
 use futures::executor::block_on;
 use log::error;
@@ -110,20 +121,9 @@ use winit::{
     window::WindowBuilder,
 };
 
-mod canvas;
-mod dashboard;
-mod postprocessing;
-mod push_constants;
-mod skeletons;
-mod texture;
-mod uniforms;
-mod utils;
-mod vector;
-
 use crate::canvas::message::CanvasMessage;
 use crate::dashboard::{Dashboard, DashboardMessage};
 use canvas::Canvas;
-use ffmpeg_next as ffmpeg;
 use std::cmp::max;
 use std::fs;
 use std::path::Path;
@@ -132,7 +132,7 @@ use winit::dpi::PhysicalSize;
 
 fn main() {
     env_logger::init();
-    ffmpeg::init().unwrap();
+    recording::init_recording();
     // Load command line args.
     let matches = setup_program_args();
 
