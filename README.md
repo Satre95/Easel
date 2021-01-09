@@ -1,4 +1,4 @@
-# Otium
+# Easel
 A Shader playground for creating digital paintings.
 
 ## Motivation
@@ -7,17 +7,17 @@ Like many others,  I enjoy creative coding with shaders. Websites like Shadertoy
 Additionally, like many others, I wanted to pick up a new skill during all the down time caused by the 2020 pandemic. I started experimenting with Rust and quickly fell in love with the language.
 
 ## Usage
-Otium is designed to be familiar to anyone who has used Shadertoy. Bring your fragment shader and it does the rest.
+Easel is designed to be familiar to anyone who has used Shadertoy. Bring your fragment shader and it does the rest.
 
-There are many configuration options available. Use `otium --help` to see the list.
+There are many configuration options available. Use `easel --help` to see the list.
 
 ## Creating Digital Paintings
-When rendering a painting for writing to disk, Otium uses high quality 16-bit textures and writes the data to uncompressed 16-bit TIFF files. 
+When rendering a painting for writing to disk, Easel uses high quality 16-bit textures and writes the data to uncompressed 16-bit TIFF files. 
 
 ## Documentation
 Detailed documentation is available on docs.rs.
 
-## Building Otium
-Internally, Otium uses the [shaderc](https://github.com/google/shaderc-rs) crate, which in turn uses a C++ library. This requires [CMake](https://cmake.org), [Python](https://python.org) and [Ninja](https://ninja-build.org/) to be installed. 
+## Building Easel
+Internally, Easel uses the [shaderc](https://github.com/google/shaderc-rs) crate, which in turn uses a C++ library. This requires [CMake](https://cmake.org), [Python](https://python.org) and [Ninja](https://ninja-build.org/) to be installed. 
 
 Once you have all the dependencies installed, simply build with Cargo. I recommend building in Release mode for performance.

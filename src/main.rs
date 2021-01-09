@@ -1,7 +1,7 @@
-//! # Otium
-//! Otium is a shader playground for creating high-quality digital paintings for printing.
-//! To this end, Otium intentionally uses high bitrate textures during the render process even though they are less memory and compute efficient.
-//! Otium is designed to be part of a workflow where you may want to further edit your digital paintings in an image editing program for later printing and display.
+//! # Easel
+//! Easel is a shader playground for creating high-quality digital paintings for printing.
+//! To this end, Easel intentionally uses high bitrate textures during the render process even though they are less memory and compute efficient.
+//! Easel is designed to be part of a workflow where you may want to further edit your digital paintings in an image editing program for later printing and display.
 //! Paintings are rendered using 16-bits-per-component textures and written to disk as uncompressed high-res 16-bit TIFF files.
 //!
 //! While rendering to screen, lower bitrate textures are used for efficiency.
@@ -10,21 +10,21 @@
 //! The maximum painting resolution is determined by the amount of memory in your GPU.
 //! Attempting to use more than this will cause the program to crash.
 //!
-//! Otium is designed to be cross-platform and run on Windows, macOS, and Linux.
+//! Easel is designed to be cross-platform and run on Windows, macOS, and Linux.
 //! It uses [wgpu] as the render backend and [imgui] for the GUI.
 //!
 //! # Getting Started
-//! Otium expects the shaders and bindings to follow a certain format. To get started, use the `--generate` option to create a basic shader.
+//! Easel expects the shaders and bindings to follow a certain format. To get started, use the `--generate` option to create a basic shader.
 //!
 //! # Usage
-//! Otium supports rendering either text source fragment shaders or compiled SPIR-V modules. If providing a text shader, the extension must be ".frag".
+//! Easel supports rendering either text source fragment shaders or compiled SPIR-V modules. If providing a text shader, the extension must be ".frag".
 //! If providing a compiled shader, the file extension must be ".spv".
 //!
-//! Shaders must be written in Vulkan GLSL. However, thanks to the [shaderc] and [wgpu] crates, Otium can run these shaders even on platforms without Vulkan (eg macOS).
-//! Otium automatically performs the shader translation for you.
+//! Shaders must be written in Vulkan GLSL. However, thanks to the [shaderc] and [wgpu] crates, Easel can run these shaders even on platforms without Vulkan (eg macOS).
+//! Easel automatically performs the shader translation for you.
 //!
 //! ## Uniforms & Push Constants
-//! Otium automatically provides the following uniform data to all shaders:
+//! Easel automatically provides the following uniform data to all shaders:
 //!
 //!   - Viewport resolution in pixels.
 //!   - Time in seconds since program start.
@@ -34,7 +34,7 @@
 //!
 //! Use the skeleton shader as a reference for the order and bindings for these uniforms.
 //!
-//! Additionally, Otium supports providing extra uniform and/or push constant data via a JSON file.
+//! Additionally, Easel supports providing extra uniform and/or push constant data via a JSON file.
 //! This can be useful in the case where a shader is provided as a compiled binary, but you want to control its behaviour with certain uniforms.
 //! Push constants can also be specified in this file.
 //!
@@ -54,7 +54,7 @@
 //! **Note:** `bool` uniforms are bound as `u32` in shaders to respect alignment constraints.
 //!
 //! ### Binding Order
-//! Otium-provided uniforms are always bound to set 0, binding 0. If you also provide uniforms, they are bound to set 0 binding 1.
+//! Easel-provided uniforms are always bound to set 0, binding 0. If you also provide uniforms, they are bound to set 0 binding 1.
 //! The order of bindings within the set is the same as the order in the JSON file. For example:
 //! ```text
 //! layout(set = 0, binding = 0) uniform EaselUniforms {
@@ -87,18 +87,18 @@
 //! These shaders can also be provided as source text, compiled SPIR-V, or both.
 //!
 //! ## Live Coding
-//! If you would like to live-code your shaders, Otium also supports auto-loading of both the shader file and the JSON file.
+//! If you would like to live-code your shaders, Easel also supports auto-loading of both the shader file and the JSON file.
 //! This works for both text shaders and SPIR-V blobs. Auto-reloading of postprocessing shaders is not supported at this time.
 //!
 //! # Help
-//! Run `otium --help` to see all options and instructions.
+//! Run `easel --help` to see all options and instructions.
 //!
 //! # Log
-//! By default Otium will log errors and warnings to the console that launched it. If you would like to see more detailed logs, set the environment variable
-//! `RUST_LOG=otium=<log_level>` before launching the program. Logging functionality is implemented using the [env_logger] crate.
+//! By default Easel will log errors and warnings to the console that launched it. If you would like to see more detailed logs, set the environment variable
+//! `RUST_LOG=easel=<log_level>` before launching the program. Logging functionality is implemented using the [env_logger] crate.
 //!
 //! # Platform Specific Features
-//! When built for macOS, Otium also has the option to automatically open rendered paintings in the default system image viewer.
+//! When built for macOS, Easel also has the option to automatically open rendered paintings in the default system image viewer.
 //! This option can be toggled in the GUI.
 
 use clap::{App, Arg};
@@ -313,9 +313,9 @@ fn main() {
     }
 }
 
-/// Sets up all arguments to be parsed by Otium
+/// Sets up all arguments to be parsed by Easel
 fn setup_program_args() -> clap::ArgMatches {
-    App::new("Otium")
+    App::new("Easel")
         .version("1.0.1")
         .author("Siddharth A. <sid.atre@me.com>")
         .arg(
@@ -376,7 +376,7 @@ fn setup_program_args() -> clap::ArgMatches {
             .short('p')
             .long("postprocess"))
         .arg(Arg::new("generate")
-            .long_about("Generate a basic skeleton for an Otium shader. The shader is written to disk and then loaded.")
+            .long_about("Generate a basic skeleton for an Easel shader. The shader is written to disk and then loaded.")
             .required(false)
             .short('g')
             .long("generate")

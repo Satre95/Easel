@@ -1,4 +1,4 @@
-/// Source string of the skeleton of a typical Otium shader.
+/// Source string of the skeleton of a typical Easel shader.
 pub static SHADER_SKELETON: &str = r#"
 #version 450
 #ifndef MY_SHADER_FRAG

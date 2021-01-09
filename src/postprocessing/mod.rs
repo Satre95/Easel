@@ -165,7 +165,7 @@ impl PostProcess {
     /// Encode this post-processing shader into the provided command encoder.
     /// * `input` - Input texture on which to run post-processing.
     /// * `output` - Output texture to render to.
-    /// * `uniforms` - Otium-provided uniforms buffer and buffer size in bytes
+    /// * `uniforms` - Easel-provided uniforms buffer and buffer size in bytes
     /// * `user_uniforms` - Optional buffer of user-specified uniforms and buffer size in bytes.
     /// * `device` - [wgpu::Device] to use for rendering.
     /// * `encoder` - [wgpu::CommandEncoder] on which to encode this draw call.

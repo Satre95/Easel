@@ -11,10 +11,10 @@ edition = "2018"
 exclude = [".vscode/*", "RenderDoc Capture Settings.cap"]
 keywords = ["shaders", "painting", "art", "shadertoy", "creative-coding"]
 license-file = "LICENSE"
-name = "otium"
+name = "easel-rs"
 readme = "README.md"
-repository = "https://github.com/Satre95/Otium"
-version = "1.0.3"
+repository = "https://github.com/Satre95/Easel"
+version = "1.0.4"
 
 [dependencies]
 byteorder = "1.3.4"
@@ -47,8 +47,9 @@ version = "1.4.1"
 version = "0.6.2"
 
 [[bin]]
-name = "otium"
 doc = true
+name = "easel"
+path = "src/main.rs"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--all-targets", "--release"]
