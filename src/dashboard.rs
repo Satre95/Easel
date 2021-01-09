@@ -1,15 +1,22 @@
-use crate::utils::{AsyncTiffWriter, WriteFinished};
-use crate::{canvas::message::CanvasMessage, uniforms::UserUniform};
+use crate::{canvas::message::CanvasMessage, recording, uniforms::UserUniform};
+use crate::{
+    recording::Recorder,
+    utils::{AsyncTiffWriter, WriteFinished},
+};
 use crate::{
     uniforms,
     vector::{IntVector2, Vector2},
 };
+use ffmpeg_next::util::format::Pixel;
 use imgui::{im_str, ImString};
 use imgui::{Condition, FontSource};
 use imgui_wgpu::RendererConfig;
 use imgui_winit_support;
 use log::{info, warn};
-use std::sync::mpsc::{Receiver, Sender};
+use std::{
+    sync::mpsc::{Receiver, Sender},
+    usize,
+};
 use wgpu::{PowerPreference, RequestAdapterOptions};
 use winit::{event::*, window::Window};
 
@@ -31,6 +38,7 @@ pub struct DashboardState {
     pub shader_compilation_error_msg: Option<String>,
     pub painting_start_time: Option<std::time::Instant>,
     pub gui_uniforms: Vec<Box<dyn UserUniform>>,
+    pub recording: bool,
 }
 
 impl DashboardState {
@@ -51,6 +59,7 @@ impl DashboardState {
             shader_compilation_error_msg: None,
             painting_start_time: None,
             gui_uniforms: Vec::new(),
+            recording: false,
         }
     }
 }
@@ -90,6 +99,7 @@ pub struct Dashboard {
 
     transmitter: Sender<DashboardMessage>,
     receiver: Receiver<CanvasMessage>,
+    recorder: Recorder,
 }
 
 impl Dashboard {
@@ -193,6 +203,7 @@ impl Dashboard {
             state,
             transmitter,
             receiver,
+            recorder: Recorder::new(size.width as usize, size.height as usize, Pixel::RGB48),
         }
     }
 
@@ -520,6 +531,15 @@ impl Dashboard {
                 Ok(msg) => self.handle_message(msg),
                 Err(_) => break,
             }
+        }
+
+        // If we are in recoding mode, tell Canvas to render a painting.
+        if self.state.recording {
+            self.transmitter
+                .send(DashboardMessage::RasterOutputRequested(
+                    self.state.painting_resolution.clone(),
+                ))
+                .unwrap();
         }
     }
 
