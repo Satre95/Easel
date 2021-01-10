@@ -87,6 +87,38 @@ pub fn load_shader(shader_file: &str) -> Result<Vec<u8>, shaderc::Error> {
     Result::Ok(fs_spv_data)
 }
 
+pub async fn transcode_painting_data(painting: wgpu::Buffer, resolution: IntVector2) -> Vec<u8> {
+    let (width, height) = (resolution.x as u32, resolution.y as u32);
+    let slice = painting.slice(0..);
+    slice.map_async(wgpu::MapMode::Read).await.unwrap();
+    let buf_view = slice.get_mapped_range();
+    let mut pixel_data: Vec<u8> = Vec::new();
+    pixel_data.reserve((width * height * 4) as usize * std::mem::size_of::<u16>());
+
+    for i in 0..(width * height) {
+        // This puts us the beginning of the pixel
+        let pixel_idx = (i * 8) as usize;
+        // Load each component
+        for component_idx in 0..4 as usize {
+            // Load the bytes of each component.
+            let component_data = [
+                (*buf_view)[pixel_idx + (2 * component_idx) + 0],
+                (*buf_view)[pixel_idx + (2 * component_idx) + 1],
+            ];
+
+            // Convert bytes to f16.
+            let component_f16 = unsafe { std::mem::transmute::<[u8; 2], f16>(component_data) };
+            // Convert to 16 bit uint and write.
+            let component_u16 = (component_f16.to_f32() * 65535.0) as u16;
+            let mut bytes = Vec::with_capacity(2);
+            bytes.write_u16::<NativeEndian>(component_u16).unwrap();
+            pixel_data.extend_from_slice(&bytes);
+        }
+    }
+
+    pixel_data
+}
+
 /// An enum used by the [AsyncTiffWriter] class to signify a write operation has finished.
 pub enum WriteFinished {
     Finished,
@@ -103,33 +135,9 @@ impl AsyncTiffWriter {
         filename: &str,
         open_external_app: bool,
     ) {
-        let (width, height) = (resolution.x as u32, resolution.y as u32);
-        let slice = painting.slice(0..);
-        slice.map_async(wgpu::MapMode::Read).await.unwrap();
-        let buf_view = slice.get_mapped_range();
-        let mut pixel_data: Vec<u8> = Vec::new();
-        pixel_data.reserve((width * height * 4) as usize * std::mem::size_of::<u16>());
-
-        for i in 0..(width * height) {
-            // This puts us the beginning of the pixel
-            let pixel_idx = (i * 8) as usize;
-            // Load each component
-            for component_idx in 0..4 as usize {
-                // Load the bytes of each component.
-                let component_data = [
-                    (*buf_view)[pixel_idx + (2 * component_idx) + 0],
-                    (*buf_view)[pixel_idx + (2 * component_idx) + 1],
-                ];
-
-                // Convert bytes to f16.
-                let component_f16 = unsafe { std::mem::transmute::<[u8; 2], f16>(component_data) };
-                // Convert to 16 bit uint and write.
-                let component_u16 = (component_f16.to_f32() * 65535.0) as u16;
-                let mut bytes = Vec::with_capacity(2);
-                bytes.write_u16::<NativeEndian>(component_u16).unwrap();
-                pixel_data.extend_from_slice(&bytes);
-            }
-        }
+        let width = resolution.x as u32;
+        let height = resolution.y as u32;
+        let pixel_data = transcode_painting_data(painting, resolution).await;
 
         {
             let file = File::create(Path::new(filename)).unwrap();
@@ -139,18 +147,12 @@ impl AsyncTiffWriter {
                 .unwrap();
         }
         // Once writing has finished, open in external app if specified.
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        #[cfg(target_os = "macos")]
         if open_external_app {
-            if cfg!(target_os = "windows") {
-                Command::new(format!("\"{}\"", filename))
-                    .spawn()
-                    .expect("Error launching external app to display painting.");
-            } else {
-                Command::new("open")
-                    .arg(filename)
-                    .spawn()
-                    .expect("Error launching external app to display painting.");
-            }
+            Command::new("open")
+                .arg(filename)
+                .spawn()
+                .expect("Error launching external app to display painting.");
         }
     }
 
