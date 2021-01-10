@@ -537,7 +537,9 @@ impl Canvas {
                 self.show_titlebar = !self.show_titlebar;
                 self.window.set_decorations(self.show_titlebar);
             }
-            DashboardMessage::RasterOutputRequested(resolution) => self.create_painting(resolution),
+            DashboardMessage::PaintingRenderRequested(resolution) => {
+                self.create_painting(resolution)
+            }
             DashboardMessage::UniformUpdatedViaGUI(modified_uniform) => {
                 let user_uniforms = &mut self.user_uniforms;
                 if let Some(index) = user_uniforms
