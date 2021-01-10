@@ -7,7 +7,7 @@ use crate::{
     uniforms,
     vector::{IntVector2, Vector2},
 };
-use ffmpeg_next::{color, util::format::Pixel};
+use ffmpeg_next::util::format::Pixel;
 use imgui::{im_str, ImStr, ImString, StyleColor};
 use imgui::{Condition, FontSource};
 use imgui_wgpu::RendererConfig;
@@ -210,7 +210,7 @@ impl Dashboard {
             state,
             transmitter,
             receiver,
-            recorder: Recorder::new(size.width as usize, size.height as usize, Pixel::RGB48),
+            recorder: Recorder::new(size.width as u32, size.height as u32, Pixel::RGB48),
         }
     }
 
