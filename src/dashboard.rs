@@ -77,6 +77,7 @@ pub enum DashboardMessage {
     Pause,
     TitlebarStatusChanged,
     PaintingRenderRequested(IntVector2),
+    MovieRenderRequested(IntVector2),
     UniformUpdatedViaGUI(Box<dyn UserUniform>),
 }
 
@@ -167,7 +168,7 @@ impl Dashboard {
         imgui.set_ini_filename(None);
         imgui.fonts().add_font(&[FontSource::TtfData {
             size_pixels: font_size,
-            data: include_bytes!("../assets/Quicksand/Quicksand-VariableFont_wght.ttf"),
+            data: include_bytes!("../assets/Quicksand/static/Quicksand-Medium.ttf"),
             config: Some(imgui::FontConfig {
                 oversample_v: hidpi_factor as i32,
                 oversample_h: hidpi_factor as i32,
@@ -233,7 +234,17 @@ impl Dashboard {
             .expect("Failed to prepare frame");
 
         let ui = self.imgui_context.frame();
-        let bg_color_token = ui.push_style_color(StyleColor::WindowBg, [0.906, 0.784, 0.573, 1.0]);
+        let mut color_tokens = vec![];
+        color_tokens.push(ui.push_style_color(StyleColor::Text, [0.0, 0.0, 0.0, 1.0]));
+        color_tokens.push(ui.push_style_color(StyleColor::Header, [0.949, 0.949, 0.953, 1.0]));
+        color_tokens.push(ui.push_style_color(StyleColor::HeaderHovered, [1.0, 1.0, 1.0, 1.0]));
+        color_tokens.push(ui.push_style_color(StyleColor::Button, [0.741, 0.933, 0.984, 1.0]));
+        color_tokens
+            .push(ui.push_style_color(StyleColor::ButtonActive, [0.741, 0.933, 0.984, 1.0]));
+        color_tokens
+            .push(ui.push_style_color(StyleColor::ButtonHovered, [0.533, 0.851, 0.816, 1.0]));
+        color_tokens.push(ui.push_style_color(StyleColor::FrameBg, [0.741, 0.933, 0.984, 1.0]));
+        color_tokens.push(ui.push_style_color(StyleColor::WindowBg, [0.906, 0.784, 0.573, 1.0]));
 
         {
             let render_time = self.state.last_render_time;
@@ -262,6 +273,7 @@ impl Dashboard {
             let mut record_button_pressed = false;
 
             painting_filename.push_str(&self.state.painting_filename);
+            recording_filename.push_str(&self.state.recording_filename);
             let mut painting_filename_changed = false;
             let mut recording_filename_changed = false;
             let painting_in_progress = match &mut self.state.painting_progress_receiver {
@@ -305,23 +317,6 @@ impl Dashboard {
                 .no_decoration()
                 .movable(false)
                 .build(&ui, || {
-                    let mut color_tokens = vec![];
-                    color_tokens.push(ui.push_style_color(StyleColor::Text, [0.0, 0.0, 0.0, 1.0]));
-                    color_tokens
-                        .push(ui.push_style_color(StyleColor::Header, [0.949, 0.949, 0.953, 1.0]));
-                    color_tokens
-                        .push(ui.push_style_color(StyleColor::HeaderHovered, [1.0, 1.0, 1.0, 1.0]));
-                    color_tokens
-                        .push(ui.push_style_color(StyleColor::Button, [0.741, 0.933, 0.984, 1.0]));
-                    color_tokens.push(
-                        ui.push_style_color(StyleColor::ButtonActive, [0.741, 0.933, 0.984, 1.0]),
-                    );
-                    color_tokens.push(
-                        ui.push_style_color(StyleColor::ButtonHovered, [0.533, 0.851, 0.816, 1.0]),
-                    );
-                    color_tokens
-                        .push(ui.push_style_color(StyleColor::FrameBg, [0.741, 0.933, 0.984, 1.0]));
-
                     if imgui::CollapsingHeader::new(im_str!("Stats & Controls"))
                         .default_open(true)
                         .open_on_arrow(true)
@@ -392,12 +387,12 @@ impl Dashboard {
                         let file_input =
                             ui.input_text(im_str!("Filename"), &mut recording_filename);
                         recording_filename_changed = file_input.build();
-                        ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
+                        // ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
                         let record_button_string;
                         if *recording_in_progress {
-                            record_button_string = im_str!("Start");
-                        } else {
                             record_button_string = im_str!("Stop");
+                        } else {
+                            record_button_string = im_str!("Start");
                         }
                         record_button_pressed = ui.button(record_button_string, [gui_width, 25.0]);
                     }
@@ -413,10 +408,6 @@ impl Dashboard {
                                 uniforms::update_user_uniform_ui(&ui, uniform);
                             }
                         }
-                    }
-                    while !color_tokens.is_empty() {
-                        let token = color_tokens.pop().unwrap();
-                        token.pop(&ui);
                     }
                     //---------------------------------
                     ui.popup_modal(im_str!("Shader Recompilation")).build(|| {
@@ -458,12 +449,18 @@ impl Dashboard {
                     ))
                     .unwrap();
             }
+            if recording_filename_changed {
+                self.state.recording_filename = String::from(recording_filename.to_str());
+            }
             if record_button_pressed {
                 *recording_in_progress = !*recording_in_progress;
             }
         }
 
-        bg_color_token.pop(&ui);
+        while !color_tokens.is_empty() {
+            let token = color_tokens.pop().unwrap();
+            token.pop(&ui);
+        }
 
         let mut encoder = self
             .device
@@ -579,6 +576,7 @@ impl Dashboard {
             CanvasMessage::UpdatePaintingResolutioninGUI(res) => {
                 self.state.painting_resolution = res;
             }
+            CanvasMessage::MovieFrameStarted(buf, resolution, start_time) => {}
         }
     }
 
@@ -598,7 +596,7 @@ impl Dashboard {
         // If we are in recoding mode, tell Canvas to render a painting.
         if self.state.recording {
             self.transmitter
-                .send(DashboardMessage::PaintingRenderRequested(
+                .send(DashboardMessage::MovieRenderRequested(
                     self.state.recording_resolution.clone(),
                 ))
                 .unwrap();

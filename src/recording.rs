@@ -9,7 +9,7 @@ pub fn init_recording() {
 pub struct Recorder {
     encoder: encoder::video::Video,
     frame_count: usize,
-    start_time: std::time::Instant,
+    start_time: Instant,
     width: usize,
     height: usize,
 }
@@ -29,7 +29,7 @@ impl Recorder {
         Recorder {
             encoder: video_encoder,
             frame_count: 0,
-            start_time: std::time::Instant::now(),
+            start_time: Instant::now(),
             width,
             height,
         }

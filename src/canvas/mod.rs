@@ -549,6 +549,9 @@ impl Canvas {
                     user_uniforms[index] = modified_uniform;
                 }
             }
+            DashboardMessage::MovieRenderRequested(resolution) => {
+                self.create_movie_frame(resolution);
+            }
         }
     }
 
@@ -1154,5 +1157,149 @@ impl Canvas {
                 .send(CanvasMessage::UniformForGUI(uni))
                 .unwrap();
         }
+    }
+
+    /// Called when Dashboard requests a movie render frame.
+    pub fn create_movie_frame(&mut self, resolution: IntVector2) {
+        let painting_tex_desc = wgpu::TextureDescriptor {
+            size: Extent3d {
+                width: resolution.x as u32,
+                height: resolution.y as u32,
+                depth: 1,
+            },
+            format: PAINTING_TEXTURE_FORMAT,
+            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT
+                | wgpu::TextureUsage::COPY_SRC
+                | wgpu::TextureUsage::SAMPLED,
+            label: Some("Painting"),
+            dimension: wgpu::TextureDimension::D2,
+            mip_level_count: 1,
+            sample_count: 1,
+        };
+
+        // Texture to render the painting too.
+        let painting = self.device.create_texture(&painting_tex_desc);
+        // Create the output texture for post-processing.
+        let post_process_tex = self.device.create_texture(&painting_tex_desc);
+
+        // Buffer to copy texture into after all rendering finishes.
+        let buffer_desc = wgpu::BufferDescriptor {
+            label: Some("Painting Staging Buffer"),
+            usage: wgpu::BufferUsage::COPY_DST | wgpu::BufferUsage::MAP_READ,
+            size: ((resolution.x * resolution.y) as usize * std::mem::size_of::<half::f16>() * 4)
+                as u64,
+            mapped_at_creation: false,
+        };
+        let buffer = self.device.create_buffer(&buffer_desc);
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Painting Encoder"),
+            });
+
+        let painting_start_time = std::time::Instant::now();
+        // First run the pipeline.
+        {
+            let painting_view = painting.create_view(&wgpu::TextureViewDescriptor::default());
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &painting_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(self.clear_color),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            });
+
+            for i in 0..self.bind_groups.len() {
+                render_pass.set_bind_group(i as u32, &self.bind_groups[i], &[]);
+            }
+            render_pass.set_pipeline(&self.painting_pipeline);
+            // Set push constants, if any.
+            if let Some(constants) = self.push_constants.as_ref() {
+                let mut offset: usize = 0;
+                for a_constant in constants {
+                    let bytes = a_constant.bytes();
+                    render_pass.set_push_constants(
+                        wgpu::ShaderStage::FRAGMENT,
+                        offset as u32,
+                        &bytes,
+                    );
+                    offset += a_constant.size();
+                }
+            }
+            render_pass.draw(0..3, 0..1);
+        }
+
+        // Then run all post-processing steps, in order.
+        let mut stage_in = &painting;
+        let mut stage_out = &post_process_tex;
+        for postprocess_op in &mut self.postprocess_ops {
+            // If user has provided custom uniforms, pass them to the post-processing stage as well.
+            let mut custom_data = None;
+            if let Some(custom_buffer) = self.user_uniforms_buffer.as_ref() {
+                custom_data = Some((custom_buffer, self.user_uniforms_buffer_size.unwrap()));
+            }
+            let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
+            let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
+            postprocess_op.post_process(
+                &input_view,
+                &output_view,
+                (
+                    &self.uniforms_device_buffer,
+                    std::mem::size_of_val(&self.uniforms),
+                ),
+                custom_data,
+                &self.device,
+                &mut encoder,
+                self.clear_color,
+                true,
+            );
+            // Swap input and output textures handles
+            std::mem::swap(&mut stage_in, &mut stage_out);
+        }
+        // Swap one more time to get final output tex (undo last swap).
+        std::mem::swap(&mut stage_in, &mut stage_out);
+
+        // Then encode a copy of the texture to the buffer.
+        {
+            let tex_copy_view = wgpu::TextureCopyView {
+                mip_level: 0,
+                origin: Origin3d::ZERO,
+                texture: stage_out,
+            };
+            let buf_copy_view = wgpu::BufferCopyView {
+                buffer: &buffer,
+                layout: wgpu::TextureDataLayout {
+                    bytes_per_row: ((resolution.x * 4) as usize * std::mem::size_of::<half::f16>())
+                        as u32,
+                    offset: 0,
+                    rows_per_image: resolution.y as u32,
+                },
+            };
+            encoder.copy_texture_to_buffer(
+                tex_copy_view,
+                buf_copy_view,
+                Extent3d {
+                    width: resolution.x as u32,
+                    height: resolution.y as u32,
+                    depth: 1,
+                },
+            );
+        }
+
+        let command_buffer = encoder.finish();
+        self.queue.submit(Some(command_buffer));
+
+        self.transmitter
+            .send(CanvasMessage::MovieFrameStarted(
+                buffer,
+                resolution,
+                painting_start_time,
+            ))
+            .unwrap();
     }
 }
