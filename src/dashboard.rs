@@ -1,4 +1,4 @@
-use crate::{canvas::message::CanvasMessage, recording, uniforms::UserUniform};
+use crate::{canvas::message::CanvasMessage, uniforms::UserUniform};
 use crate::{
     recording::Recorder,
     utils::{AsyncTiffWriter, WriteFinished},
@@ -7,8 +7,8 @@ use crate::{
     uniforms,
     vector::{IntVector2, Vector2},
 };
-use ffmpeg_next::util::format::Pixel;
-use imgui::{im_str, ImString};
+use ffmpeg_next::{color, util::format::Pixel};
+use imgui::{im_str, ImStr, ImString, StyleColor};
 use imgui::{Condition, FontSource};
 use imgui_wgpu::RendererConfig;
 use imgui_winit_support;
@@ -30,10 +30,13 @@ pub struct DashboardState {
     pub paused: bool,
     pub show_titlebar: bool,
     pub painting_resolution: IntVector2,
+    pub recording_resolution: IntVector2,
     pub painting_filename: String,
+    pub recording_filename: String,
     /// Only available on macOS.
     pub open_painting_externally: bool,
     pub pause_while_painting: bool,
+    pub pause_while_recording: bool,
     pub painting_progress_receiver: Option<Receiver<WriteFinished>>,
     pub shader_compilation_error_msg: Option<String>,
     pub painting_start_time: Option<std::time::Instant>,
@@ -52,9 +55,12 @@ impl DashboardState {
             paused: false,
             show_titlebar: true,
             painting_resolution: IntVector2::zero(),
+            recording_resolution: IntVector2::zero(),
             painting_filename: String::from("Painting"),
+            recording_filename: String::from("Muybridge"),
             open_painting_externally: true,
             pause_while_painting: true,
+            pause_while_recording: true,
             painting_progress_receiver: None,
             shader_compilation_error_msg: None,
             painting_start_time: None,
@@ -70,7 +76,7 @@ pub enum DashboardMessage {
     Play,
     Pause,
     TitlebarStatusChanged,
-    RasterOutputRequested(IntVector2),
+    PaintingRenderRequested(IntVector2),
     UniformUpdatedViaGUI(Box<dyn UserUniform>),
 }
 
@@ -156,7 +162,7 @@ impl Dashboard {
             &window,
             imgui_winit_support::HiDpiMode::Default,
         );
-        let font_size = (16.0 * hidpi_factor) as f32;
+        let font_size = (18.0 * hidpi_factor) as f32;
         imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
         imgui.set_ini_filename(None);
         imgui.fonts().add_font(&[FontSource::TtfData {
@@ -227,6 +233,7 @@ impl Dashboard {
             .expect("Failed to prepare frame");
 
         let ui = self.imgui_context.frame();
+        let bg_color_token = ui.push_style_color(StyleColor::WindowBg, [0.906, 0.784, 0.573, 1.0]);
 
         {
             let render_time = self.state.last_render_time;
@@ -242,14 +249,21 @@ impl Dashboard {
             let mut create_painting_button_pressed = false;
             let painting_width = &mut self.state.painting_resolution.x;
             let painting_height = &mut self.state.painting_resolution.y;
+            let recording_width = &mut self.state.recording_resolution.x;
+            let recording_height = &mut self.state.recording_resolution.y;
             let mut painting_filename = ImString::with_capacity(256);
+            let mut recording_filename = ImString::with_capacity(256);
             let open_painting_externally = &mut self.state.open_painting_externally;
             let pause_while_painting = &mut self.state.pause_while_painting;
+            let pause_while_recording = &mut self.state.pause_while_recording;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
             let user_uniforms = &mut self.state.gui_uniforms;
+            let recording_in_progress = &mut self.state.recording;
+            let mut record_button_pressed = false;
 
             painting_filename.push_str(&self.state.painting_filename);
             let mut painting_filename_changed = false;
+            let mut recording_filename_changed = false;
             let painting_in_progress = match &mut self.state.painting_progress_receiver {
                 None => false,
                 Some(rx) => {
@@ -291,6 +305,23 @@ impl Dashboard {
                 .no_decoration()
                 .movable(false)
                 .build(&ui, || {
+                    let mut color_tokens = vec![];
+                    color_tokens.push(ui.push_style_color(StyleColor::Text, [0.0, 0.0, 0.0, 1.0]));
+                    color_tokens
+                        .push(ui.push_style_color(StyleColor::Header, [0.949, 0.949, 0.953, 1.0]));
+                    color_tokens
+                        .push(ui.push_style_color(StyleColor::HeaderHovered, [1.0, 1.0, 1.0, 1.0]));
+                    color_tokens
+                        .push(ui.push_style_color(StyleColor::Button, [0.741, 0.933, 0.984, 1.0]));
+                    color_tokens.push(
+                        ui.push_style_color(StyleColor::ButtonActive, [0.741, 0.933, 0.984, 1.0]),
+                    );
+                    color_tokens.push(
+                        ui.push_style_color(StyleColor::ButtonHovered, [0.533, 0.851, 0.816, 1.0]),
+                    );
+                    color_tokens
+                        .push(ui.push_style_color(StyleColor::FrameBg, [0.741, 0.933, 0.984, 1.0]));
+
                     if imgui::CollapsingHeader::new(im_str!("Stats & Controls"))
                         .default_open(true)
                         .open_on_arrow(true)
@@ -324,13 +355,13 @@ impl Dashboard {
                                 ui.button(im_str!("Show Titlebar"), [gui_width, 25.0]);
                         }
                     }
+
                     if imgui::CollapsingHeader::new(im_str!("Painting Options"))
                         .default_open(true)
                         .open_on_arrow(true)
                         .open_on_double_click(true)
                         .build(&ui)
                     {
-                        ui.text(im_str!("Painting"));
                         ui.input_int(im_str!("Width"), painting_width).build();
                         ui.input_int(im_str!("Height"), painting_height).build();
 
@@ -348,6 +379,28 @@ impl Dashboard {
                                 ui.button(im_str!("Create"), [gui_width, 50.0]);
                         }
                     }
+
+                    if imgui::CollapsingHeader::new(im_str!("Recording Options"))
+                        .default_open(true)
+                        .open_on_arrow(true)
+                        .open_on_double_click(true)
+                        .build(&ui)
+                    {
+                        ui.input_int(im_str!("Width"), recording_width).build();
+                        ui.input_int(im_str!("Height"), recording_height).build();
+
+                        let file_input =
+                            ui.input_text(im_str!("Filename"), &mut recording_filename);
+                        recording_filename_changed = file_input.build();
+                        ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
+                        let record_button_string;
+                        if *recording_in_progress {
+                            record_button_string = im_str!("Start");
+                        } else {
+                            record_button_string = im_str!("Stop");
+                        }
+                        record_button_pressed = ui.button(record_button_string, [gui_width, 25.0]);
+                    }
                     //---------------------------------
                     if !user_uniforms.is_empty() {
                         if imgui::CollapsingHeader::new(im_str!("Uniforms"))
@@ -360,6 +413,10 @@ impl Dashboard {
                                 uniforms::update_user_uniform_ui(&ui, uniform);
                             }
                         }
+                    }
+                    while !color_tokens.is_empty() {
+                        let token = color_tokens.pop().unwrap();
+                        token.pop(&ui);
                     }
                     //---------------------------------
                     ui.popup_modal(im_str!("Shader Recompilation")).build(|| {
@@ -396,12 +453,17 @@ impl Dashboard {
                     self.transmitter.send(DashboardMessage::Pause).unwrap();
                 }
                 self.transmitter
-                    .send(DashboardMessage::RasterOutputRequested(
+                    .send(DashboardMessage::PaintingRenderRequested(
                         self.state.painting_resolution.clone(),
                     ))
                     .unwrap();
             }
+            if record_button_pressed {
+                *recording_in_progress = !*recording_in_progress;
+            }
         }
+
+        bg_color_token.pop(&ui);
 
         let mut encoder = self
             .device
@@ -536,8 +598,8 @@ impl Dashboard {
         // If we are in recoding mode, tell Canvas to render a painting.
         if self.state.recording {
             self.transmitter
-                .send(DashboardMessage::RasterOutputRequested(
-                    self.state.painting_resolution.clone(),
+                .send(DashboardMessage::PaintingRenderRequested(
+                    self.state.recording_resolution.clone(),
                 ))
                 .unwrap();
         }
