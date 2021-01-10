@@ -18,6 +18,11 @@ pub enum CanvasMessage {
     /// The IntVector2 is the resolution of the painting.
     /// The Instant is the time point at which this render operation started.
     PaintingStarted(wgpu::Buffer, IntVector2, std::time::Instant),
+    /// A movie frame render operation has been dispatched.
+    /// The buffer will contain the frame data once rendering finishes.
+    /// The IntVector2 is the resolution of the frame.
+    /// The Instant is the time point at which this render operation started.
+    MovieFrameStarted(wgpu::Buffer, IntVector2, std::time::Instant),
     /// Signifies shader reloaded from disk, recompiled, and render pipeline has been updated.
     ShaderCompilationSucceeded,
     /// Error reloading shader, contains error message.
