@@ -1,14 +1,17 @@
-use crate::{canvas::message::CanvasMessage, uniforms::UserUniform};
+use crate::{
+    canvas::{message::CanvasMessage, PAINTING_TEXTURE_FORMAT},
+    recording,
+    uniforms::UserUniform,
+};
 use crate::{
     recording::Recorder,
     utils::{AsyncTiffWriter, WriteFinished},
 };
 use crate::{
     uniforms,
-    vector::{IntVector2, Vector2},
+    vector::{IntVector2, UIntVector2, Vector2},
 };
-use ffmpeg_next::util::format::Pixel;
-use imgui::{im_str, ImStr, ImString, StyleColor};
+use imgui::{im_str, ImString, StyleColor};
 use imgui::{Condition, FontSource};
 use imgui_wgpu::RendererConfig;
 use imgui_winit_support;
@@ -17,7 +20,7 @@ use std::{
     sync::mpsc::{Receiver, Sender},
     usize,
 };
-use wgpu::{PowerPreference, RequestAdapterOptions};
+use wgpu::{PowerPreference, RenderPassColorAttachmentDescriptor, RequestAdapterOptions};
 use winit::{event::*, window::Window};
 
 /// Struct containing information the GUI is displaying and interacting with.
@@ -55,7 +58,7 @@ impl DashboardState {
             paused: false,
             show_titlebar: true,
             painting_resolution: IntVector2::zero(),
-            recording_resolution: IntVector2::zero(),
+            recording_resolution: IntVector2::new(1920, 1080),
             painting_filename: String::from("Painting"),
             recording_filename: String::from("Muybridge"),
             open_painting_externally: true,
@@ -76,8 +79,8 @@ pub enum DashboardMessage {
     Play,
     Pause,
     TitlebarStatusChanged,
-    PaintingRenderRequested(IntVector2),
-    MovieRenderRequested(IntVector2),
+    PaintingRenderRequested(UIntVector2),
+    MovieRenderRequested(UIntVector2),
     UniformUpdatedViaGUI(Box<dyn UserUniform>),
 }
 
@@ -106,7 +109,7 @@ pub struct Dashboard {
 
     transmitter: Sender<DashboardMessage>,
     receiver: Receiver<CanvasMessage>,
-    recorder: Recorder,
+    recorder: Option<Recorder>,
 }
 
 impl Dashboard {
@@ -210,7 +213,7 @@ impl Dashboard {
             state,
             transmitter,
             receiver,
-            recorder: Recorder::new(size.width as u32, size.height as u32, Pixel::RGB48),
+            recorder: None,
         }
     }
 
@@ -357,10 +360,13 @@ impl Dashboard {
                         .open_on_double_click(true)
                         .build(&ui)
                     {
-                        ui.input_int(im_str!("Width"), painting_width).build();
-                        ui.input_int(im_str!("Height"), painting_height).build();
+                        ui.input_int(im_str!("Width##Painting"), painting_width)
+                            .build();
+                        ui.input_int(im_str!("Height##Painting"), painting_height)
+                            .build();
 
-                        let file_input = ui.input_text(im_str!("Filename"), &mut painting_filename);
+                        let file_input =
+                            ui.input_text(im_str!("Filename##Painting"), &mut painting_filename);
                         painting_filename_changed = file_input.build();
                         if cfg!(target_os = "macos") {
                             ui.checkbox(
@@ -381,18 +387,20 @@ impl Dashboard {
                         .open_on_double_click(true)
                         .build(&ui)
                     {
-                        ui.input_int(im_str!("Width"), recording_width).build();
-                        ui.input_int(im_str!("Height"), recording_height).build();
+                        ui.input_int(im_str!("Width##Movie"), recording_width)
+                            .build();
+                        ui.input_int(im_str!("Height##Movie"), recording_height)
+                            .build();
 
                         let file_input =
-                            ui.input_text(im_str!("Filename"), &mut recording_filename);
+                            ui.input_text(im_str!("Filename##Movie"), &mut recording_filename);
                         recording_filename_changed = file_input.build();
                         // ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
                         let record_button_string;
                         if *recording_in_progress {
-                            record_button_string = im_str!("Stop");
+                            record_button_string = im_str!("Stop##Recording");
                         } else {
-                            record_button_string = im_str!("Start");
+                            record_button_string = im_str!("Start##Recording");
                         }
                         record_button_pressed = ui.button(record_button_string, [gui_width, 25.0]);
                     }
@@ -444,9 +452,10 @@ impl Dashboard {
                     self.transmitter.send(DashboardMessage::Pause).unwrap();
                 }
                 self.transmitter
-                    .send(DashboardMessage::PaintingRenderRequested(
-                        self.state.painting_resolution.clone(),
-                    ))
+                    .send(DashboardMessage::PaintingRenderRequested(UIntVector2::new(
+                        self.state.painting_resolution.x as u32,
+                        self.state.painting_resolution.y as u32,
+                    )))
                     .unwrap();
             }
             if recording_filename_changed {
@@ -552,7 +561,7 @@ impl Dashboard {
                 };
                 self.state.painting_progress_receiver = Some(AsyncTiffWriter::write(
                     buf,
-                    resolution,
+                    UIntVector2::new(resolution.x as u32, resolution.y as u32),
                     filename,
                     open_externally,
                 ));
@@ -576,7 +585,10 @@ impl Dashboard {
             CanvasMessage::UpdatePaintingResolutioninGUI(res) => {
                 self.state.painting_resolution = res;
             }
-            CanvasMessage::MovieFrameStarted(buf, resolution, start_time) => {}
+            CanvasMessage::MovieFrameStarted(buf, resolution, start_time) => {
+                // TODO: Send buffer data to Recorder.
+                // self.recorder.as_mut().unwrap().add_frame(buf, resolution);
+            }
         }
     }
 
@@ -593,13 +605,30 @@ impl Dashboard {
             }
         }
 
-        // If we are in recoding mode, tell Canvas to render a painting.
+        // If we are in recording mode, tell Canvas to render a painting.
         if self.state.recording {
+            // If recorder is not initialised, set it up
+            if self.recorder.is_none() {
+                self.recorder = Some(Recorder::new(
+                    self.state.recording_resolution.x as u32,
+                    self.state.recording_resolution.y as u32,
+                    PAINTING_TEXTURE_FORMAT,
+                    60,
+                    format!("{}.mp4", self.state.recording_filename),
+                ));
+            }
             self.transmitter
-                .send(DashboardMessage::MovieRenderRequested(
-                    self.state.recording_resolution.clone(),
-                ))
+                .send(DashboardMessage::MovieRenderRequested(UIntVector2::new(
+                    self.state.recording_resolution.x as u32,
+                    self.state.recording_resolution.y as u32,
+                )))
                 .unwrap();
+        }
+
+        // If we are no longer recording, but still have the recorder, finish and cleanup
+        if !self.state.recording && self.recorder.is_some() {
+            let recorder = self.recorder.take().unwrap();
+            recorder.finish();
         }
     }
 

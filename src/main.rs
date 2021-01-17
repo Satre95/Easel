@@ -132,7 +132,6 @@ use winit::dpi::PhysicalSize;
 
 fn main() {
     env_logger::init();
-    recording::init_recording();
     // Load command line args.
     let matches = setup_program_args();
 

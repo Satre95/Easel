@@ -2,7 +2,7 @@ use crate::dashboard::DashboardMessage;
 use crate::push_constants::{load_push_constants_from_json, PushConstant};
 use crate::texture::{default_color_sampler, AssetTexture, Texture};
 use crate::uniforms::{load_uniforms_from_json, Uniforms, UserUniform};
-use crate::vector::{IntVector2, IntVector4, Vector2, Vector4};
+use crate::vector::{IntVector2, IntVector4, UIntVector2, Vector2, Vector4};
 use chrono::Datelike;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::vec::Vec;
@@ -825,7 +825,7 @@ impl Canvas {
 
     /// Similar to [Self::render_canvas()], but renders to a very high bit-depth texture and writes output to file.
     /// **Note:** File is written to disk asynchronously.
-    pub fn create_painting(&mut self, resolution: IntVector2) {
+    pub fn create_painting(&mut self, resolution: UIntVector2) {
         let painting_tex_desc = wgpu::TextureDescriptor {
             size: Extent3d {
                 width: resolution.x as u32,
@@ -1160,7 +1160,7 @@ impl Canvas {
     }
 
     /// Called when Dashboard requests a movie render frame.
-    pub fn create_movie_frame(&mut self, resolution: IntVector2) {
+    pub fn create_movie_frame(&mut self, resolution: UIntVector2) {
         let painting_tex_desc = wgpu::TextureDescriptor {
             size: Extent3d {
                 width: resolution.x as u32,

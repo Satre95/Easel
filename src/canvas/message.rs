@@ -1,5 +1,5 @@
 use crate::uniforms::UserUniform;
-use crate::vector::{IntVector2, Vector2};
+use crate::vector::{IntVector2, UIntVector2, Vector2};
 
 /// Message Enums used by [crate::canvas::Canvas] to send messages to interested parties.
 pub enum CanvasMessage {
@@ -17,12 +17,12 @@ pub enum CanvasMessage {
     /// The buffer will contain the painting data once rendering finishes.
     /// The IntVector2 is the resolution of the painting.
     /// The Instant is the time point at which this render operation started.
-    PaintingStarted(wgpu::Buffer, IntVector2, std::time::Instant),
+    PaintingStarted(wgpu::Buffer, UIntVector2, std::time::Instant),
     /// A movie frame render operation has been dispatched.
     /// The buffer will contain the frame data once rendering finishes.
     /// The IntVector2 is the resolution of the frame.
     /// The Instant is the time point at which this render operation started.
-    MovieFrameStarted(wgpu::Buffer, IntVector2, std::time::Instant),
+    MovieFrameStarted(wgpu::Buffer, UIntVector2, std::time::Instant),
     /// Signifies shader reloaded from disk, recompiled, and render pipeline has been updated.
     ShaderCompilationSucceeded,
     /// Error reloading shader, contains error message.
