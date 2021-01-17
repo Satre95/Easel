@@ -9,10 +9,22 @@
 			],
 			"args": [
 				"--open",
-				"--release",
+				"--release"
 			],
 			"group": "build",
 			"label": "rust: cargo doc"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"label": "rust: cargo build"
 		}
 	]
 }
