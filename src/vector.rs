@@ -101,3 +101,54 @@ macro_rules! impl_intvector {
 impl_intvector!(IntVector2 { x, y }, 2, intvec2);
 impl_intvector!(IntVector3 { x, y, z }, 3, intvec3);
 impl_intvector!(IntVector4 { x, y, z, w }, 4, intvec4);
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
+/// A simple 4D 32-bit integer vector struct.
+pub struct UIntVector4 {
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
+    pub w: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
+/// A simple 3D integer vector struct.
+pub struct UIntVector3 {
+    pub x: u32,
+    pub y: u32,
+    pub z: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
+/// A simple 2D integer vector struct.
+pub struct UIntVector2 {
+    pub x: u32,
+    pub y: u32,
+}
+
+// Fns that can be commonly implemented, trying to keep DRY
+macro_rules! impl_uintvector {
+    ($UIntVectorN:ident { $($field:ident),+ }, $n:expr, $constructor:ident) => {
+        impl $UIntVectorN {
+            #[inline]
+            #[allow(dead_code)]
+            pub const fn new($($field: u32),+) -> $UIntVectorN {
+                $UIntVectorN { $($field: $field),+}
+            }
+
+            #[inline]
+            #[allow(dead_code)]
+            pub const fn zero() -> $UIntVectorN {
+                $UIntVectorN { $($field: 0),+}
+            }
+        }
+
+    };
+}
+
+impl_uintvector!(UIntVector2 { x, y }, 2, uintvec2);
+impl_uintvector!(UIntVector3 { x, y, z }, 3, uintvec3);
+impl_uintvector!(UIntVector4 { x, y, z, w }, 4, uintvec4);

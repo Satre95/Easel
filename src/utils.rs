@@ -1,4 +1,4 @@
-use crate::vector::IntVector2;
+use crate::vector::UIntVector2;
 use byteorder::{NativeEndian, WriteBytesExt};
 use futures::executor::block_on;
 use half::prelude::*;
@@ -87,8 +87,8 @@ pub fn load_shader(shader_file: &str) -> Result<Vec<u8>, shaderc::Error> {
     Result::Ok(fs_spv_data)
 }
 
-pub async fn transcode_painting_data(painting: wgpu::Buffer, resolution: IntVector2) -> Vec<u8> {
-    let (width, height) = (resolution.x as u32, resolution.y as u32);
+pub async fn transcode_painting_data(painting: wgpu::Buffer, resolution: UIntVector2) -> Vec<u8> {
+    let (width, height) = (resolution.x, resolution.y);
     let slice = painting.slice(0..);
     slice.map_async(wgpu::MapMode::Read).await.unwrap();
     let buf_view = slice.get_mapped_range();
@@ -131,12 +131,12 @@ impl AsyncTiffWriter {
     /// Private helper method called by [AsyncTiffWriter::write]
     async fn write_painting_to_disk(
         painting: wgpu::Buffer,
-        resolution: IntVector2,
+        resolution: UIntVector2,
         filename: &str,
         open_external_app: bool,
     ) {
-        let width = resolution.x as u32;
-        let height = resolution.y as u32;
+        let width = resolution.x;
+        let height = resolution.y;
         let pixel_data = transcode_painting_data(painting, resolution).await;
 
         {
@@ -166,7 +166,7 @@ impl AsyncTiffWriter {
     /// * `open_external_app` - Optionally launch external program to view the image. Only supported on macOS and Windows.
     pub fn write(
         buffer: wgpu::Buffer,
-        resolution: IntVector2,
+        resolution: UIntVector2,
         filename: String,
         open_external_app: bool,
     ) -> Receiver<WriteFinished> {
