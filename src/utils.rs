@@ -115,7 +115,9 @@ pub async fn transcode_painting_data(painting: wgpu::Buffer, resolution: UIntVec
             pixel_data.extend_from_slice(&bytes);
         }
     }
-
+    drop(slice);
+    drop(buf_view);
+    drop(painting);
     pixel_data
 }
 
