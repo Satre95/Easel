@@ -11,6 +11,7 @@ use crate::{
     uniforms,
     vector::{IntVector2, UIntVector2, Vector2},
 };
+use core::panic;
 use imgui::{im_str, ImString, StyleColor};
 use imgui::{Condition, FontSource};
 use imgui_wgpu::RendererConfig;
@@ -58,7 +59,7 @@ impl DashboardState {
             paused: false,
             show_titlebar: true,
             painting_resolution: IntVector2::zero(),
-            recording_resolution: IntVector2::new(1920, 1080),
+            recording_resolution: IntVector2::new(512, 512),
             painting_filename: String::from("Painting"),
             recording_filename: String::from("Muybridge"),
             open_painting_externally: true,
@@ -586,8 +587,11 @@ impl Dashboard {
                 self.state.painting_resolution = res;
             }
             CanvasMessage::MovieFrameStarted(buf, resolution, start_time) => {
-                // TODO: Send buffer data to Recorder.
-                // self.recorder.as_mut().unwrap().add_frame(buf, resolution);
+                if let Some(ref recorder) = self.recorder {
+                    recorder.add_frame(buf, resolution, start_time);
+                } else {
+                    panic!("Frame received for movie at timestamp {:?}, but no recorder is instantiated.", start_time);
+                }
             }
         }
     }
@@ -613,7 +617,7 @@ impl Dashboard {
                     self.state.recording_resolution.x as u32,
                     self.state.recording_resolution.y as u32,
                     PAINTING_TEXTURE_FORMAT,
-                    60,
+                    2,
                     format!("{}.mp4", self.state.recording_filename),
                 ));
             }
@@ -628,6 +632,7 @@ impl Dashboard {
         // If we are no longer recording, but still have the recorder, finish and cleanup
         if !self.state.recording && self.recorder.is_some() {
             let recorder = self.recorder.take().unwrap();
+            recorder.stop();
             recorder.finish();
         }
     }

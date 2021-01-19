@@ -1,16 +1,28 @@
-use crate::{utils, vector::UIntVector2};
+use crate::{
+    utils,
+    vector::{IntVector2, UIntVector2},
+};
+use futures::executor::block_on;
+use log::info;
 use std::io::{self, Write};
 use std::process::Stdio;
 use std::process::{Child, Command};
+use std::thread::JoinHandle;
 use wgpu::TextureFormat;
+
+enum RecorderThreadSignal {
+    Stop,
+    Frame(wgpu::Buffer, UIntVector2),
+}
 
 pub struct Recorder {
     width: u32,
     height: u32,
     framerate: u32,
     texture_format: TextureFormat,
-    ffmpeg_process: Child,
     filename: String,
+    join_handle: JoinHandle<()>,
+    message_transmitter: std::sync::mpsc::Sender<RecorderThreadSignal>,
 }
 
 impl Recorder {
@@ -39,48 +51,86 @@ impl Recorder {
                 "-y",
                 "-f",
                 "rawvideo",
-                "-r",
-                &framerate.to_string(),
-                "-s",
+                "-s:v",
                 &resolution_string,
+                "-framerate",
+                &framerate.to_string(),
                 "-pix_fmt",
                 pix_fmt,
                 "-i",
-                "pipe:0",
+                "-",
+                "-f",
+                "h264",
+                "-c:v",
+                "h264_videotoolbox",
                 &filename,
             ])
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            // .stdout(Stdio::piped())
+            // .stderr(Stdio::piped())
             .spawn()
             .unwrap();
+
+        let (transmitter, receiver) = std::sync::mpsc::channel();
+
+        let join_handle = std::thread::spawn(move || {
+            let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
+
+            loop {
+                let msg = receiver.recv().unwrap();
+                match msg {
+                    RecorderThreadSignal::Stop => {
+                        info!("Stop Signal received, broke out of loop.");
+                        break;
+                    }
+                    RecorderThreadSignal::Frame(buf, res) => {
+                        // let pixel_size = Self::bytes_per_pixel_for_texture_format(self.texture_format);
+                        let pixel_data = block_on(utils::transcode_painting_data(buf, res));
+                        // info!("Writing frame data to FFmpeg pipe.");
+                        pipe_in.write_all(&pixel_data).unwrap();
+                        // info!("Finished writing frame data to FFmpeg pipe.");
+                    }
+                }
+            }
+
+            let output = ffmpeg_process
+                .wait_with_output()
+                .expect("Failed to wait on FFmpeg process");
+
+            println!("FFMpeg status: {}", output.status);
+            // std::io::stdout().write_all(&output.stdout).unwrap();
+            // std::io::stderr().write_all(&output.stderr).unwrap();
+        });
+
         Recorder {
             width,
             height,
             texture_format,
             framerate,
-            ffmpeg_process,
             filename,
+            join_handle,
+            message_transmitter: transmitter,
         }
     }
 
-    pub async fn add_frame(&mut self, buffer: wgpu::Buffer, resolution: UIntVector2) {
-        // let pixel_size = Self::bytes_per_pixel_for_texture_format(self.texture_format);
-        let pixel_data = utils::transcode_painting_data(buffer, resolution).await;
-        let pipe_in = self.ffmpeg_process.stdin.as_mut().unwrap();
-        pipe_in.write_all(&pixel_data).unwrap();
+    pub fn add_frame(
+        &self,
+        buffer: wgpu::Buffer,
+        resolution: UIntVector2,
+        _timestamp: std::time::Instant,
+    ) {
+        self.message_transmitter
+            .send(RecorderThreadSignal::Frame(buffer, resolution))
+            .unwrap();
     }
 
-    pub fn finish(mut self) {
-        // Wait for child process to finish execution then collect output.
-        // This also closes the stdin channel before waiting.
-        let output = self
-            .ffmpeg_process
-            .wait_with_output()
-            .expect("Failed to wait on FFmpeg process");
+    pub fn stop(&self) {
+        self.message_transmitter
+            .send(RecorderThreadSignal::Stop)
+            .unwrap();
+    }
 
-        println!("FFMpeg status: {}", output.status);
-        std::io::stdout().write_all(&output.stdout).unwrap();
-        std::io::stderr().write_all(&output.stderr).unwrap();
+    pub fn finish(self) {
+        self.join_handle.join().unwrap();
     }
 }
