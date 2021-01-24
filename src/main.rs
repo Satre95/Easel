@@ -127,7 +127,7 @@ use canvas::Canvas;
 use std::cmp::max;
 use std::fs;
 use std::path::Path;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::sync_channel;
 use winit::dpi::PhysicalSize;
 
 fn main() {
@@ -210,8 +210,8 @@ fn main() {
         }
 
         // Setup channels for Dashboard <--> Canvas communication
-        let (dashboard_tx, state_rx) = channel::<DashboardMessage>();
-        let (state_tx, dashboard_rx) = channel::<CanvasMessage>();
+        let (dashboard_tx, state_rx) = sync_channel::<DashboardMessage>(1024);
+        let (state_tx, dashboard_rx) = sync_channel::<CanvasMessage>(1024);
 
         // Setup render state.
         let mut canvas = block_on(Canvas::new(

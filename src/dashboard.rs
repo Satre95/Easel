@@ -18,10 +18,10 @@ use imgui_wgpu::RendererConfig;
 use imgui_winit_support;
 use log::{info, warn};
 use std::{
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::{Receiver, SyncSender},
     usize,
 };
-use wgpu::{PowerPreference, RenderPassColorAttachmentDescriptor, RequestAdapterOptions};
+use wgpu::{PowerPreference, RequestAdapterOptions};
 use winit::{event::*, window::Window};
 
 /// Struct containing information the GUI is displaying and interacting with.
@@ -45,7 +45,6 @@ pub struct DashboardState {
     pub shader_compilation_error_msg: Option<String>,
     pub painting_start_time: Option<std::time::Instant>,
     pub gui_uniforms: Vec<Box<dyn UserUniform>>,
-    pub recording: bool,
 }
 
 impl DashboardState {
@@ -69,7 +68,6 @@ impl DashboardState {
             shader_compilation_error_msg: None,
             painting_start_time: None,
             gui_uniforms: Vec::new(),
-            recording: false,
         }
     }
 }
@@ -108,7 +106,7 @@ pub struct Dashboard {
 
     state: DashboardState,
 
-    transmitter: Sender<DashboardMessage>,
+    transmitter: SyncSender<DashboardMessage>,
     receiver: Receiver<CanvasMessage>,
     recorder: Option<Recorder>,
 }
@@ -120,7 +118,7 @@ impl Dashboard {
     /// * `receiver` - [std::sync::mpsc::Receiver] object used to receive messages from [crate::canvas::Canvas]
     pub async fn new(
         window: Window,
-        transmitter: Sender<DashboardMessage>,
+        transmitter: SyncSender<DashboardMessage>,
         receiver: Receiver<CanvasMessage>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
@@ -270,11 +268,11 @@ impl Dashboard {
             let mut recording_filename = ImString::with_capacity(256);
             let open_painting_externally = &mut self.state.open_painting_externally;
             let pause_while_painting = &mut self.state.pause_while_painting;
-            let pause_while_recording = &mut self.state.pause_while_recording;
+            // let pause_while_recording = &mut self.state.pause_while_recording;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
             let user_uniforms = &mut self.state.gui_uniforms;
-            let recording_in_progress = &mut self.state.recording;
             let mut record_button_pressed = false;
+            let recorder = self.recorder.as_ref();
 
             painting_filename.push_str(&self.state.painting_filename);
             recording_filename.push_str(&self.state.recording_filename);
@@ -396,14 +394,16 @@ impl Dashboard {
                         let file_input =
                             ui.input_text(im_str!("Filename##Movie"), &mut recording_filename);
                         recording_filename_changed = file_input.build();
-                        // ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
-                        let record_button_string;
-                        if *recording_in_progress {
-                            record_button_string = im_str!("Stop##Recording");
+                        if let Some(rec) = recorder {
+                            if !rec.stop_signal_sent {
+                                record_button_pressed =
+                                    ui.button(im_str!("Stop##Recording"), [gui_width, 25.0]);
+                            }
                         } else {
-                            record_button_string = im_str!("Start##Recording");
+                            record_button_pressed =
+                                ui.button(im_str!("Start##Recording"), [gui_width, 25.0]);
                         }
-                        record_button_pressed = ui.button(record_button_string, [gui_width, 25.0]);
+                        // ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
                     }
                     //---------------------------------
                     if !user_uniforms.is_empty() {
@@ -463,7 +463,18 @@ impl Dashboard {
                 self.state.recording_filename = String::from(recording_filename.to_str());
             }
             if record_button_pressed {
-                *recording_in_progress = !*recording_in_progress;
+                if self.recorder.is_none() {
+                    self.recorder = Some(Recorder::new(
+                        self.state.recording_resolution.x as u32,
+                        self.state.recording_resolution.y as u32,
+                        PAINTING_TEXTURE_FORMAT,
+                        60,
+                        format!("{}.mp4", self.state.recording_filename),
+                    ));
+                } else {
+                    let recorder = self.recorder.as_mut().unwrap();
+                    recorder.stop();
+                }
             }
         }
 
@@ -587,7 +598,7 @@ impl Dashboard {
                 self.state.painting_resolution = res;
             }
             CanvasMessage::MovieFrameStarted(buf, resolution, start_time) => {
-                if let Some(ref recorder) = self.recorder {
+                if let Some(ref mut recorder) = self.recorder {
                     recorder.add_frame(buf, resolution, start_time);
                 } else {
                     panic!("Frame received for movie at timestamp {:?}, but no recorder is instantiated.", start_time);
@@ -609,31 +620,20 @@ impl Dashboard {
             }
         }
 
-        // If we are in recording mode, tell Canvas to render a painting.
-        if self.state.recording {
-            // If recorder is not initialised, set it up
-            if self.recorder.is_none() {
-                self.recorder = Some(Recorder::new(
-                    self.state.recording_resolution.x as u32,
-                    self.state.recording_resolution.y as u32,
-                    PAINTING_TEXTURE_FORMAT,
-                    2,
-                    format!("{}.mp4", self.state.recording_filename),
-                ));
+        if let Some(ref mut recorder) = self.recorder {
+            // If we have not stopped, keep requesting frames
+            if !recorder.stop_signal_sent {
+                self.transmitter
+                    .send(DashboardMessage::MovieRenderRequested(UIntVector2::new(
+                        self.state.recording_resolution.x as u32,
+                        self.state.recording_resolution.y as u32,
+                    )))
+                    .unwrap();
             }
-            self.transmitter
-                .send(DashboardMessage::MovieRenderRequested(UIntVector2::new(
-                    self.state.recording_resolution.x as u32,
-                    self.state.recording_resolution.y as u32,
-                )))
-                .unwrap();
-        }
-
-        // If we are no longer recording, but still have the recorder, finish and cleanup
-        if !self.state.recording && self.recorder.is_some() {
-            let recorder = self.recorder.take().unwrap();
-            recorder.stop();
-            recorder.finish();
+            // If finished, cleanup.
+            if recorder.poll() {
+                self.recorder.take().unwrap().finish();
+            }
         }
     }
 
