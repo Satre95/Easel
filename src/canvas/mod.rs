@@ -4,7 +4,7 @@ use crate::texture::{default_color_sampler, AssetTexture, Texture};
 use crate::uniforms::{load_uniforms_from_json, Uniforms, UserUniform};
 use crate::vector::{IntVector2, IntVector4, UIntVector2, Vector2, Vector4};
 use chrono::Datelike;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Receiver, SyncSender};
 use std::vec::Vec;
 use stopwatch::Stopwatch;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
@@ -94,7 +94,7 @@ pub struct Canvas {
     last_update: std::time::Instant,
 
     /// Used to send messages to Dashboard.
-    transmitter: Sender<CanvasMessage>,
+    transmitter: SyncSender<CanvasMessage>,
     /// Use to receive messages from Dashboard.
     receiver: Receiver<DashboardMessage>,
     /// Whether to show the window titlebar.
@@ -125,7 +125,7 @@ impl Canvas {
         images: Option<Vec<image::DynamicImage>>,
         user_uniforms: Option<Vec<Box<dyn UserUniform>>>,
         push_constants: Option<Vec<Box<dyn PushConstant>>>,
-        transmitter: Sender<CanvasMessage>,
+        transmitter: SyncSender<CanvasMessage>,
         receiver: Receiver<DashboardMessage>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);

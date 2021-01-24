@@ -1,8 +1,8 @@
 use crate::{
-    utils,
+    uniforms, utils,
     vector::{IntVector2, UIntVector2},
 };
-use futures::executor::block_on;
+use futures::{executor::block_on, future::join};
 use log::info;
 use std::io::{self, Write};
 use std::process::Stdio;
@@ -20,20 +20,14 @@ pub struct Recorder {
     height: u32,
     framerate: u32,
     texture_format: TextureFormat,
-    filename: String,
     join_handle: JoinHandle<()>,
-    message_transmitter: std::sync::mpsc::Sender<RecorderThreadSignal>,
+    sender: std::sync::mpsc::SyncSender<RecorderThreadSignal>,
+    receiver: std::sync::mpsc::Receiver<bool>,
+    pub done: bool,
+    pub stop_signal_sent: bool,
 }
 
 impl Recorder {
-    pub fn bytes_per_pixel_for_texture_format(format: TextureFormat) -> usize {
-        match format {
-            TextureFormat::Rgba16Uint => 8,
-            TextureFormat::Rgba8Unorm => 4,
-            _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba16Uint, Rgba8Unorm")
-        }
-    }
-
     pub fn new(
         width: u32,
         height: u32,
@@ -46,58 +40,66 @@ impl Recorder {
             _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba16Float")
         };
         let resolution_string = format!("{}x{}", width.to_string(), height.to_string());
-        let mut ffmpeg_process = Command::new("ffmpeg")
-            .args(&[
-                "-y",
-                "-f",
-                "rawvideo",
-                "-s:v",
-                &resolution_string,
-                "-framerate",
-                &framerate.to_string(),
-                "-pix_fmt",
-                pix_fmt,
-                "-i",
-                "-",
-                "-f",
-                "h264",
-                "-c:v",
-                "h264_videotoolbox",
-                &filename,
-            ])
-            .stdin(Stdio::piped())
-            // .stdout(Stdio::piped())
-            // .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-
-        let (transmitter, receiver) = std::sync::mpsc::channel();
-
+        let buf_size: usize = 60 * 16 * width as usize * height as usize;
+        let (our_sender, thread_receiver) = std::sync::mpsc::sync_channel(buf_size);
+        let (thread_sender, our_receiver) = std::sync::mpsc::channel();
         let join_handle = std::thread::spawn(move || {
-            let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
+            let mut ffmpeg_process = Command::new("ffmpeg")
+                .args(&[
+                    "-y",
+                    "-f",
+                    "rawvideo",
+                    "-s:v",
+                    &resolution_string,
+                    "-framerate",
+                    &framerate.to_string(),
+                    "-pix_fmt",
+                    pix_fmt,
+                    // "-hwaccel",
+                    // "cuda",
+                    "-i",
+                    "-",
+                    // "-c:v",
+                    // "libx264",
+                    "-c:v",
+                    "h264_nvenc",
+                    "-pix_fmt",
+                    "yuv420p",
+                    // "-profile",
+                    // "high444p",
+                    // "-crf",
+                    // "20",
+                    &filename,
+                ])
+                .stdin(Stdio::piped())
+                // .stdout(Stdio::piped())
+                // .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
 
             loop {
-                let msg = receiver.recv().unwrap();
+                let msg = thread_receiver.recv().unwrap();
                 match msg {
                     RecorderThreadSignal::Stop => {
-                        info!("Stop Signal received, broke out of loop.");
+                        info!("Stop signal received.");
                         break;
                     }
-                    RecorderThreadSignal::Frame(buf, res) => {
-                        // let pixel_size = Self::bytes_per_pixel_for_texture_format(self.texture_format);
-                        let pixel_data = block_on(utils::transcode_painting_data(buf, res));
-                        // info!("Writing frame data to FFmpeg pipe.");
+                    RecorderThreadSignal::Frame(buffer, resolution) => {
+                        let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
+                        let pixel_data =
+                            block_on(utils::transcode_painting_data(buffer, resolution, true));
                         pipe_in.write_all(&pixel_data).unwrap();
-                        // info!("Finished writing frame data to FFmpeg pipe.");
                     }
                 }
             }
 
+            ffmpeg_process.stdin.as_mut().unwrap().flush().unwrap();
             let output = ffmpeg_process
                 .wait_with_output()
                 .expect("Failed to wait on FFmpeg process");
 
-            println!("FFMpeg status: {}", output.status);
+            info!("FFMpeg finished with status: {}", output.status);
+            thread_sender.send(true).unwrap();
             // std::io::stdout().write_all(&output.stdout).unwrap();
             // std::io::stderr().write_all(&output.stderr).unwrap();
         });
@@ -107,10 +109,21 @@ impl Recorder {
             height,
             texture_format,
             framerate,
-            filename,
             join_handle,
-            message_transmitter: transmitter,
+            sender: our_sender,
+            receiver: our_receiver,
+            done: false,
+            stop_signal_sent: false,
         }
+    }
+
+    pub fn poll(&mut self) -> bool {
+        let msg_result = self.receiver.try_recv();
+        match msg_result {
+            Ok(done) => self.done = done,
+            Err(_) => {}
+        }
+        self.done
     }
 
     pub fn add_frame(
@@ -119,15 +132,18 @@ impl Recorder {
         resolution: UIntVector2,
         _timestamp: std::time::Instant,
     ) {
-        self.message_transmitter
+        self.sender
             .send(RecorderThreadSignal::Frame(buffer, resolution))
             .unwrap();
     }
 
-    pub fn stop(&self) {
-        self.message_transmitter
-            .send(RecorderThreadSignal::Stop)
-            .unwrap();
+    pub fn stop(&mut self) {
+        if self.stop_signal_sent {
+            panic!("Attempting to request stop on recorder that has already stopped!");
+        }
+        info!("Sending stop signal to FFMpeg.");
+        self.sender.send(RecorderThreadSignal::Stop).unwrap();
+        self.stop_signal_sent = true;
     }
 
     pub fn finish(self) {

@@ -8,7 +8,6 @@ use log::info;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
-use std::process::Command;
 use std::sync::mpsc::{channel, Receiver};
 use std::vec::Vec;
 use wgpu::{
@@ -87,19 +86,34 @@ pub fn load_shader(shader_file: &str) -> Result<Vec<u8>, shaderc::Error> {
     Result::Ok(fs_spv_data)
 }
 
-pub async fn transcode_painting_data(painting: wgpu::Buffer, resolution: UIntVector2) -> Vec<u8> {
+pub async fn transcode_painting_data(
+    painting: wgpu::Buffer,
+    resolution: UIntVector2,
+    movie: bool,
+) -> Vec<u8> {
     let (width, height) = (resolution.x, resolution.y);
     let slice = painting.slice(0..);
     slice.map_async(wgpu::MapMode::Read).await.unwrap();
     let buf_view = slice.get_mapped_range();
     let mut pixel_data: Vec<u8> = Vec::new();
-    pixel_data.reserve((width * height * 4) as usize * std::mem::size_of::<u16>());
-
+    if movie {
+        pixel_data.reserve((width * height * 3) as usize * std::mem::size_of::<u16>());
+    } else {
+        pixel_data.reserve((width * height * 4) as usize * std::mem::size_of::<u16>());
+    }
     for i in 0..(width * height) {
         // This puts us the beginning of the pixel
         let pixel_idx = (i * 8) as usize;
+
+        let range;
+        if movie {
+            range = 0..3;
+        } else {
+            range = 0..4;
+        }
+        let mut bytes_workarea = Vec::with_capacity(2);
         // Load each component
-        for component_idx in 0..4 as usize {
+        for component_idx in range {
             // Load the bytes of each component.
             let component_data = [
                 (*buf_view)[pixel_idx + (2 * component_idx) + 0],
@@ -110,9 +124,11 @@ pub async fn transcode_painting_data(painting: wgpu::Buffer, resolution: UIntVec
             let component_f16 = unsafe { std::mem::transmute::<[u8; 2], f16>(component_data) };
             // Convert to 16 bit uint and write.
             let component_u16 = (component_f16.to_f32() * 65535.0) as u16;
-            let mut bytes = Vec::with_capacity(2);
-            bytes.write_u16::<NativeEndian>(component_u16).unwrap();
-            pixel_data.extend_from_slice(&bytes);
+            bytes_workarea.clear();
+            bytes_workarea
+                .write_u16::<NativeEndian>(component_u16)
+                .unwrap();
+            pixel_data.extend_from_slice(&bytes_workarea);
         }
     }
     drop(slice);
@@ -139,7 +155,7 @@ impl AsyncTiffWriter {
     ) {
         let width = resolution.x;
         let height = resolution.y;
-        let pixel_data = transcode_painting_data(painting, resolution).await;
+        let pixel_data = transcode_painting_data(painting, resolution, false).await;
 
         {
             let file = File::create(Path::new(filename)).unwrap();
