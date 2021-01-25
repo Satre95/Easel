@@ -16,10 +16,6 @@ enum RecorderThreadSignal {
 }
 
 pub struct Recorder {
-    width: u32,
-    height: u32,
-    framerate: u32,
-    texture_format: TextureFormat,
     join_handle: JoinHandle<()>,
     sender: std::sync::mpsc::SyncSender<RecorderThreadSignal>,
     receiver: std::sync::mpsc::Receiver<bool>,
@@ -77,6 +73,7 @@ impl Recorder {
                 .spawn()
                 .unwrap();
 
+            let mut pixel_data = Vec::<u8>::new();
             loop {
                 let msg = thread_receiver.recv().unwrap();
                 match msg {
@@ -86,8 +83,12 @@ impl Recorder {
                     }
                     RecorderThreadSignal::Frame(buffer, resolution) => {
                         let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
-                        let pixel_data =
-                            block_on(utils::transcode_painting_data(buffer, resolution, true));
+                        block_on(utils::transcode_painting_data(
+                            buffer,
+                            resolution,
+                            true,
+                            &mut pixel_data,
+                        ));
                         pipe_in.write_all(&pixel_data).unwrap();
                     }
                 }
@@ -105,10 +106,6 @@ impl Recorder {
         });
 
         Recorder {
-            width,
-            height,
-            texture_format,
-            framerate,
             join_handle,
             sender: our_sender,
             receiver: our_receiver,
