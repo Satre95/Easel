@@ -183,7 +183,7 @@ impl AsyncTiffWriter {
         // Once writing has finished, open in external app if specified.
         #[cfg(target_os = "macos")]
         if _open_external_app {
-            Command::new("open")
+            std::process::Command::new("open")
                 .arg(filename)
                 .spawn()
                 .expect("Error launching external app to display painting.");
