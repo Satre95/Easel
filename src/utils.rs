@@ -86,31 +86,47 @@ pub fn load_shader(shader_file: &str) -> Result<Vec<u8>, shaderc::Error> {
     Result::Ok(fs_spv_data)
 }
 
-pub async fn transcode_painting_data(
+pub async fn transcode_painting_data_for_movie(
     painting: wgpu::Buffer,
     resolution: UIntVector2,
-    movie: bool,
     pixel_data: &mut Vec<u8>,
 ) {
     let (width, height) = (resolution.x, resolution.y);
     let slice = painting.slice(0..);
     slice.map_async(wgpu::MapMode::Read).await.unwrap();
     let buf_view = slice.get_mapped_range();
-    if movie {
-        pixel_data.reserve((width * height * 3) as usize * std::mem::size_of::<u16>());
-    } else {
-        pixel_data.reserve((width * height * 4) as usize * std::mem::size_of::<u16>());
+    pixel_data.reserve((width * height * 3) as usize * std::mem::size_of::<u16>());
+    for i in 0..(width * height) {
+        // This puts us the beginning of the pixel
+        let pixel_idx = (i * 4) as usize;
+        let range = 0..3;
+        // Load each component
+        for component_idx in range {
+            // Load the bytes of each component.
+            let component_data = (*buf_view)[pixel_idx + component_idx];
+            pixel_data.push(component_data);
+        }
     }
+    drop(slice);
+    drop(buf_view);
+    drop(painting);
+}
+
+pub async fn transcode_painting_data(
+    painting: wgpu::Buffer,
+    resolution: UIntVector2,
+    pixel_data: &mut Vec<u8>,
+) {
+    let (width, height) = (resolution.x, resolution.y);
+    let slice = painting.slice(0..);
+    slice.map_async(wgpu::MapMode::Read).await.unwrap();
+    let buf_view = slice.get_mapped_range();
+    pixel_data.reserve((width * height * 4) as usize * std::mem::size_of::<u16>());
     for i in 0..(width * height) {
         // This puts us the beginning of the pixel
         let pixel_idx = (i * 8) as usize;
 
-        let range;
-        if movie {
-            range = 0..3;
-        } else {
-            range = 0..4;
-        }
+        let range = 0..4;
         let mut bytes_workarea = Vec::with_capacity(2);
         // Load each component
         for component_idx in range {
@@ -155,7 +171,7 @@ impl AsyncTiffWriter {
         let width = resolution.x;
         let height = resolution.y;
         let mut pixel_data = Vec::<u8>::new();
-        transcode_painting_data(painting, resolution, false, &mut pixel_data).await;
+        transcode_painting_data(painting, resolution, &mut pixel_data).await;
 
         {
             let file = File::create(Path::new(filename)).unwrap();

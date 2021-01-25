@@ -7,6 +7,8 @@ use std::process::Stdio;
 use std::thread::JoinHandle;
 use wgpu::TextureFormat;
 
+pub static MOVIE_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+
 enum RecorderThreadSignal {
     Stop,
     Frame(wgpu::Buffer, UIntVector2),
@@ -29,8 +31,8 @@ impl Recorder {
         filename: String,
     ) -> Recorder {
         let pix_fmt = match texture_format{
-            TextureFormat::Rgba16Float => "rgb48le",
-            _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba16Float")
+            TextureFormat::Rgba8UnormSrgb => "rgb0",
+            _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba8UnormSrgb")
         };
         let resolution_string = format!("{}x{}", width.to_string(), height.to_string());
         let buf_size: usize = 60 * 16 * width as usize * height as usize;
@@ -80,10 +82,9 @@ impl Recorder {
                     }
                     RecorderThreadSignal::Frame(buffer, resolution) => {
                         let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
-                        block_on(utils::transcode_painting_data(
+                        block_on(utils::transcode_painting_data_for_movie(
                             buffer,
                             resolution,
-                            true,
                             &mut pixel_data,
                         ));
                         pipe_in.write_all(&pixel_data).unwrap();
