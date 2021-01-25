@@ -90,12 +90,12 @@ pub async fn transcode_painting_data(
     painting: wgpu::Buffer,
     resolution: UIntVector2,
     movie: bool,
-) -> Vec<u8> {
+    pixel_data: &mut Vec<u8>,
+) {
     let (width, height) = (resolution.x, resolution.y);
     let slice = painting.slice(0..);
     slice.map_async(wgpu::MapMode::Read).await.unwrap();
     let buf_view = slice.get_mapped_range();
-    let mut pixel_data: Vec<u8> = Vec::new();
     if movie {
         pixel_data.reserve((width * height * 3) as usize * std::mem::size_of::<u16>());
     } else {
@@ -134,7 +134,6 @@ pub async fn transcode_painting_data(
     drop(slice);
     drop(buf_view);
     drop(painting);
-    pixel_data
 }
 
 /// An enum used by the [AsyncTiffWriter] class to signify a write operation has finished.
@@ -155,7 +154,8 @@ impl AsyncTiffWriter {
     ) {
         let width = resolution.x;
         let height = resolution.y;
-        let pixel_data = transcode_painting_data(painting, resolution, false).await;
+        let mut pixel_data = Vec::<u8>::new();
+        transcode_painting_data(painting, resolution, false, &mut pixel_data).await;
 
         {
             let file = File::create(Path::new(filename)).unwrap();
