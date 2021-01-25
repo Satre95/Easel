@@ -37,24 +37,25 @@ impl Recorder {
         let buf_size: usize = 60 * 16 * width as usize * height as usize;
         let (our_sender, thread_receiver) = std::sync::mpsc::sync_channel(buf_size);
         let (thread_sender, our_receiver) = std::sync::mpsc::channel();
+        let framerate_str = framerate.to_string();
         let join_handle = std::thread::spawn(move || {
-            let mut ffmpeg_process = Command::new("ffmpeg")
-                .args(&[
-                    "-y",
-                    "-f",
-                    "rawvideo",
-                    "-s:v",
-                    &resolution_string,
-                    "-framerate",
-                    &framerate.to_string(),
-                    "-pix_fmt",
-                    pix_fmt,
+            let mut args = vec![
+                "-y",
+                "-f",
+                "rawvideo",
+                "-s:v",
+                &resolution_string,
+                "-framerate",
+                &framerate_str,
+                "-pix_fmt",
+                pix_fmt,
+            ];
+            if cfg!(target_os = "windows") {
+                args.extend_from_slice(&[
                     "-hwaccel",
                     "cuda",
                     "-i",
                     "-",
-                    // "-c:v",
-                    // "libx264",
                     "-c:v",
                     "h264_nvenc",
                     "-pix_fmt",
@@ -64,10 +65,25 @@ impl Recorder {
                     // "-crf",
                     // "20",
                     &filename,
-                ])
+                ]);
+            } else {
+                args.extend_from_slice(&[
+                    "-i",
+                    "-",
+                    "-c:v",
+                    "h264_videotoolbox",
+                    "-pix_fmt",
+                    "yuv420p",
+                    // "-profile",
+                    // "high444p",
+                    // "-crf",
+                    // "20",
+                    &filename,
+                ]);
+            }
+            let mut ffmpeg_process = Command::new("ffmpeg")
+                .args(&args)
                 .stdin(Stdio::piped())
-                // .stdout(Stdio::piped())
-                // .stderr(Stdio::piped())
                 .spawn()
                 .unwrap();
 
