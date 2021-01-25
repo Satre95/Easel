@@ -1,12 +1,9 @@
-use crate::{
-    uniforms, utils,
-    vector::{IntVector2, UIntVector2},
-};
-use futures::{executor::block_on, future::join};
+use crate::{utils, vector::UIntVector2};
+use futures::executor::block_on;
 use log::info;
-use std::io::{self, Write};
+use std::io::Write;
+use std::process::Command;
 use std::process::Stdio;
-use std::process::{Child, Command};
 use std::thread::JoinHandle;
 use wgpu::TextureFormat;
 

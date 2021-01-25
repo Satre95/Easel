@@ -1,6 +1,5 @@
 use crate::{
     canvas::{message::CanvasMessage, PAINTING_TEXTURE_FORMAT},
-    recording,
     uniforms::UserUniform,
 };
 use crate::{

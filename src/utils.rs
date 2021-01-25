@@ -150,7 +150,7 @@ impl AsyncTiffWriter {
         painting: wgpu::Buffer,
         resolution: UIntVector2,
         filename: &str,
-        open_external_app: bool,
+        _open_external_app: bool,
     ) {
         let width = resolution.x;
         let height = resolution.y;
@@ -166,7 +166,7 @@ impl AsyncTiffWriter {
         }
         // Once writing has finished, open in external app if specified.
         #[cfg(target_os = "macos")]
-        if open_external_app {
+        if _open_external_app {
             Command::new("open")
                 .arg(filename)
                 .spawn()
