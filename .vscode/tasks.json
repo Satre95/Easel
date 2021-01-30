@@ -25,6 +25,21 @@
 				"isDefault": true
 			},
 			"label": "rust: cargo build"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": [
+				"--release"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"label": "rust: cargo build release"
 		}
 	]
 }
