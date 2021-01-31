@@ -1,8 +1,8 @@
-use crate::dashboard::DashboardMessage;
 use crate::push_constants::{load_push_constants_from_json, PushConstant};
 use crate::texture::{default_color_sampler, AssetTexture, Texture};
 use crate::uniforms::{load_uniforms_from_json, Uniforms, UserUniform};
 use crate::vector::{IntVector2, IntVector4, UIntVector2, Vector2, Vector4};
+use crate::{dashboard::DashboardMessage, recording::MOVIE_TEXTURE_FORMAT};
 use chrono::Datelike;
 use std::sync::mpsc::{channel, Receiver, SyncSender};
 use std::vec::Vec;
@@ -57,6 +57,9 @@ pub struct Canvas {
     /// Render pipeline used for off-screen rendering. Will always include sRGB conversion post-processing effect.
     /// May also include other post-processing effects, if provided.
     painting_pipeline: wgpu::RenderPipeline,
+    /// Render pipeline use for off-screen rendering of movie frames.
+    /// May also include other post-processing effects, if provided.
+    movie_pipeline: wgpu::RenderPipeline,
     /// The pipeline use to render output of [Self::render_pipeline] to screen.
     swap_chain_pipeline: wgpu::RenderPipeline,
     /// Color with which to [wgpu::LoadOp::Clear] attachments to render passes.
@@ -220,7 +223,7 @@ impl Canvas {
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Fifo,
+            present_mode: wgpu::PresentMode::Mailbox,
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
@@ -371,12 +374,16 @@ impl Canvas {
                 bind_group_layouts: &[&primary_bind_group_layout, &secondary_bind_group_layout],
                 push_constant_ranges: &constants_for_pipeline,
             });
-        let (render_pipeline, painting_pipeline) = crate::utils::create_pipelines(
+        let (render_pipeline, painting_pipeline, movie_pipeline) = crate::utils::create_pipelines(
             &device,
             &render_pipeline_layout,
             &vs_module,
             &fs_module,
-            (RENDER_TEXTURE_FORMAT, PAINTING_TEXTURE_FORMAT),
+            (
+                RENDER_TEXTURE_FORMAT,
+                PAINTING_TEXTURE_FORMAT,
+                MOVIE_TEXTURE_FORMAT,
+            ),
         );
         // Swap chain pipeline will never change and is separate from others.
         let swap_chain_pipeline =
@@ -409,6 +416,7 @@ impl Canvas {
             swap_chain,
             render_pipeline,
             painting_pipeline,
+            movie_pipeline,
             swap_chain_pipeline,
             clear_color: wgpu::Color {
                 r: 0.1,
@@ -1081,16 +1089,22 @@ impl Canvas {
                             bind_group_layouts: &layouts,
                             push_constant_ranges: &constants_for_pipeline,
                         });
-                let (render_pipeline, painting_pipeline) = crate::utils::create_pipelines(
-                    &self.device,
-                    &render_pipeline_layout,
-                    &vs_module,
-                    &fs_module,
-                    (RENDER_TEXTURE_FORMAT, PAINTING_TEXTURE_FORMAT),
-                );
+                let (render_pipeline, painting_pipeline, movie_pipeline) =
+                    crate::utils::create_pipelines(
+                        &self.device,
+                        &render_pipeline_layout,
+                        &vs_module,
+                        &fs_module,
+                        (
+                            RENDER_TEXTURE_FORMAT,
+                            PAINTING_TEXTURE_FORMAT,
+                            MOVIE_TEXTURE_FORMAT,
+                        ),
+                    );
 
                 self.render_pipeline = render_pipeline;
                 self.painting_pipeline = painting_pipeline;
+                self.movie_pipeline = movie_pipeline;
 
                 self.transmitter
                     .send(CanvasMessage::ShaderCompilationSucceeded)
@@ -1157,6 +1171,8 @@ impl Canvas {
                 .send(CanvasMessage::UniformForGUI(uni))
                 .unwrap();
         }
+        // Inform our window we have new contents for it to draw.
+        self.window.request_redraw();
     }
 
     /// Called when Dashboard requests a movie render frame.
@@ -1167,7 +1183,7 @@ impl Canvas {
                 height: resolution.y as u32,
                 depth: 1,
             },
-            format: PAINTING_TEXTURE_FORMAT,
+            format: MOVIE_TEXTURE_FORMAT,
             usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT
                 | wgpu::TextureUsage::COPY_SRC
                 | wgpu::TextureUsage::SAMPLED,
@@ -1195,7 +1211,7 @@ impl Canvas {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Painting Encoder"),
+                label: Some("Movie Frame Encoder"),
             });
 
         let painting_start_time = std::time::Instant::now();
@@ -1217,7 +1233,7 @@ impl Canvas {
             for i in 0..self.bind_groups.len() {
                 render_pass.set_bind_group(i as u32, &self.bind_groups[i], &[]);
             }
-            render_pass.set_pipeline(&self.painting_pipeline);
+            render_pass.set_pipeline(&self.movie_pipeline);
             // Set push constants, if any.
             if let Some(constants) = self.push_constants.as_ref() {
                 let mut offset: usize = 0;
@@ -1237,7 +1253,14 @@ impl Canvas {
         // Then run all post-processing steps, in order.
         let mut stage_in = &painting;
         let mut stage_out = &post_process_tex;
-        for postprocess_op in &mut self.postprocess_ops {
+        // Depending on texture format of movie frames, choose whether to apply the post-processing operation or not.
+        let num_ops = match MOVIE_TEXTURE_FORMAT == wgpu::TextureFormat::Rgba8UnormSrgb {
+            true => self.postprocess_ops.len() - 1,
+            false => self.postprocess_ops.len(),
+        };
+        for i in 0..num_ops {
+            let postprocess_op = &self.postprocess_ops[i];
+
             // If user has provided custom uniforms, pass them to the post-processing stage as well.
             let mut custom_data = None;
             if let Some(custom_buffer) = self.user_uniforms_buffer.as_ref() {

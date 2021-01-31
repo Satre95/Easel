@@ -95,21 +95,17 @@ pub async fn transcode_painting_data_for_movie(
     let slice = painting.slice(0..);
     slice.map_async(wgpu::MapMode::Read).await.unwrap();
     let buf_view = slice.get_mapped_range();
-    pixel_data.reserve((width * height * 3) as usize * std::mem::size_of::<u16>());
+    pixel_data.reserve((width * height * 4) as usize);
     for i in 0..(width * height) {
         // This puts us the beginning of the pixel
         let pixel_idx = (i * 4) as usize;
-        let range = 0..3;
-        // Load each component
-        for component_idx in range {
+        // Load each component, excluding alpha
+        for component_idx in 0..4 {
             // Load the bytes of each component.
             let component_data = (*buf_view)[pixel_idx + component_idx];
             pixel_data.push(component_data);
         }
     }
-    drop(slice);
-    drop(buf_view);
-    drop(painting);
 }
 
 pub async fn transcode_painting_data(
@@ -147,9 +143,6 @@ pub async fn transcode_painting_data(
             pixel_data.extend_from_slice(&bytes_workarea);
         }
     }
-    drop(slice);
-    drop(buf_view);
-    drop(painting);
 }
 
 /// An enum used by the [AsyncTiffWriter] class to signify a write operation has finished.
@@ -225,8 +218,16 @@ pub fn create_pipelines(
     layout: &wgpu::PipelineLayout,
     vs_module: &wgpu::ShaderModule,
     fs_module: &wgpu::ShaderModule,
-    texture_formats: (wgpu::TextureFormat, wgpu::TextureFormat),
-) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
+    texture_formats: (
+        wgpu::TextureFormat,
+        wgpu::TextureFormat,
+        wgpu::TextureFormat,
+    ),
+) -> (
+    wgpu::RenderPipeline,
+    wgpu::RenderPipeline,
+    wgpu::RenderPipeline,
+) {
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Canvas Pipeline"),
         layout: Some(&layout),
@@ -307,7 +308,47 @@ pub fn create_pipelines(
         alpha_to_coverage_enabled: false, // 7.
     });
 
-    (render_pipeline, painting_pipeline)
+    let movie_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Movie Pipeline"),
+        layout: Some(&layout),
+        vertex_stage: wgpu::ProgrammableStageDescriptor {
+            module: &vs_module,
+            entry_point: "main",
+        },
+        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+            module: &fs_module,
+            entry_point: "main",
+        }),
+        rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: wgpu::CullMode::None,
+            depth_bias: 0,
+            depth_bias_slope_scale: 0.0,
+            depth_bias_clamp: 0.0,
+            clamp_depth: false,
+        }),
+        color_states: &[wgpu::ColorStateDescriptor {
+            format: texture_formats.2,
+            color_blend: wgpu::BlendDescriptor::REPLACE,
+            alpha_blend: wgpu::BlendDescriptor::REPLACE,
+            write_mask: wgpu::ColorWrite::ALL,
+        }],
+        primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+        depth_stencil_state: None,                                 // 2.
+        vertex_state: wgpu::VertexStateDescriptor {
+            index_format: wgpu::IndexFormat::Uint32, // 3.
+            vertex_buffers: &[VertexBufferDescriptor {
+                attributes: &[],
+                step_mode: InputStepMode::Vertex,
+                stride: 0,
+            }], // 4.
+        },
+        sample_count: 1,                  // 5.
+        sample_mask: !0,                  // 6.
+        alpha_to_coverage_enabled: false, // 7.
+    });
+
+    (render_pipeline, painting_pipeline, movie_pipeline)
 }
 
 static RENDER_TO_SWAP_CHAIN_TEX_SHADER_BYTES: &[u8] =
