@@ -1,6 +1,5 @@
 use crate::{
-    canvas::{message::CanvasMessage, PAINTING_TEXTURE_FORMAT},
-    uniforms::UserUniform,
+    canvas::message::CanvasMessage, recording::MOVIE_TEXTURE_FORMAT, uniforms::UserUniform,
 };
 use crate::{
     recording::Recorder,
@@ -18,6 +17,7 @@ use imgui_winit_support;
 use log::{info, warn};
 use std::{
     sync::mpsc::{Receiver, SyncSender},
+    time::Instant,
     usize,
 };
 use wgpu::{PowerPreference, RequestAdapterOptions};
@@ -36,10 +36,11 @@ pub struct DashboardState {
     pub recording_resolution: IntVector2,
     pub painting_filename: String,
     pub recording_filename: String,
+    /// Unit: seconds
+    pub movie_runtime: usize,
     /// Only available on macOS.
     pub open_painting_externally: bool,
     pub pause_while_painting: bool,
-    pub pause_while_recording: bool,
     pub painting_progress_receiver: Option<Receiver<WriteFinished>>,
     pub shader_compilation_error_msg: Option<String>,
     pub painting_start_time: Option<std::time::Instant>,
@@ -60,9 +61,9 @@ impl DashboardState {
             recording_resolution: IntVector2::new(512, 512),
             painting_filename: String::from("Painting"),
             recording_filename: String::from("Muybridge"),
+            movie_runtime: 60,
             open_painting_externally: true,
             pause_while_painting: true,
-            pause_while_recording: true,
             painting_progress_receiver: None,
             shader_compilation_error_msg: None,
             painting_start_time: None,
@@ -108,6 +109,7 @@ pub struct Dashboard {
     transmitter: SyncSender<DashboardMessage>,
     receiver: Receiver<CanvasMessage>,
     recorder: Option<Recorder>,
+    recorder_init_time: Instant,
 }
 
 impl Dashboard {
@@ -212,6 +214,7 @@ impl Dashboard {
             transmitter,
             receiver,
             recorder: None,
+            recorder_init_time: std::time::Instant::now(),
         }
     }
 
@@ -267,7 +270,6 @@ impl Dashboard {
             let mut recording_filename = ImString::with_capacity(256);
             let open_painting_externally = &mut self.state.open_painting_externally;
             let pause_while_painting = &mut self.state.pause_while_painting;
-            // let pause_while_recording = &mut self.state.pause_while_recording;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
             let user_uniforms = &mut self.state.gui_uniforms;
             let mut record_button_pressed = false;
@@ -466,10 +468,11 @@ impl Dashboard {
                     self.recorder = Some(Recorder::new(
                         self.state.recording_resolution.x as u32,
                         self.state.recording_resolution.y as u32,
-                        PAINTING_TEXTURE_FORMAT,
+                        MOVIE_TEXTURE_FORMAT,
                         60,
                         format!("{}.mp4", self.state.recording_filename),
                     ));
+                    self.recorder_init_time = std::time::Instant::now();
                 } else {
                     let recorder = self.recorder.as_mut().unwrap();
                     recorder.stop();
@@ -527,7 +530,7 @@ impl Dashboard {
                         format: wgpu::TextureFormat::Bgra8UnormSrgb,
                         width: physical_size.width as u32,
                         height: physical_size.height as u32,
-                        present_mode: wgpu::PresentMode::Fifo,
+                        present_mode: wgpu::PresentMode::Mailbox,
                     };
                     self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
                 }
@@ -620,8 +623,9 @@ impl Dashboard {
         }
 
         if let Some(ref mut recorder) = self.recorder {
-            // If we have not stopped, keep requesting frames
-            if !recorder.stop_signal_sent {
+            let time_since_start = (Instant::now() - self.recorder_init_time).as_secs_f64();
+            // If we have not stopped, keep requesting frames. Wait a few seconds to give ffmpeg time to start.
+            if !recorder.stop_signal_sent && time_since_start > 7.0 {
                 self.transmitter
                     .send(DashboardMessage::MovieRenderRequested(UIntVector2::new(
                         self.state.recording_resolution.x as u32,
@@ -636,14 +640,6 @@ impl Dashboard {
         }
     }
 
-    /// Signifies new frame is being requested.
-    pub fn frame_tick(&mut self) {
-        let now = std::time::Instant::now();
-        self.state.last_render_time = (now - self.last_frame).as_secs_f64() * 1000.0;
-        self.window.request_redraw();
-        self.last_frame = now;
-    }
-
     pub fn post_render(&mut self) {
         for uniform in &self.state.gui_uniforms {
             self.transmitter
@@ -651,5 +647,9 @@ impl Dashboard {
                 .unwrap();
         }
         self.state.gui_uniforms.clear();
+        let now = std::time::Instant::now();
+        self.state.last_render_time = (now - self.last_frame).as_secs_f64() * 1000.0;
+        self.window.request_redraw();
+        self.last_frame = now;
     }
 }

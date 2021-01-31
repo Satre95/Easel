@@ -40,6 +40,7 @@ impl Recorder {
         let framerate_str = framerate.to_string();
         let join_handle = std::thread::spawn(move || {
             let mut args = vec![
+                "-hide_banner",
                 "-y",
                 "-f",
                 "rawvideo",
@@ -57,7 +58,9 @@ impl Recorder {
                     "-i",
                     "-",
                     "-c:v",
-                    "h264_nvenc",
+                    "hevc_nvenc",
+                    "-preset",
+                    "3",
                     "-pix_fmt",
                     "yuv420p",
                     // "-profile",
@@ -88,6 +91,7 @@ impl Recorder {
                 .unwrap();
 
             let mut pixel_data = Vec::<u8>::new();
+            let mut frame_count: usize = 0;
             loop {
                 let msg = thread_receiver.recv().unwrap();
                 match msg {
@@ -96,6 +100,7 @@ impl Recorder {
                         break;
                     }
                     RecorderThreadSignal::Frame(buffer, resolution) => {
+                        frame_count += 1;
                         let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
                         block_on(utils::transcode_painting_data_for_movie(
                             buffer,
@@ -112,7 +117,10 @@ impl Recorder {
                 .wait_with_output()
                 .expect("Failed to wait on FFmpeg process");
 
-            info!("FFMpeg finished with status: {}", output.status);
+            info!(
+                "FFMpeg processed {} frames and finished with status: {}",
+                frame_count, output.status
+            );
             thread_sender.send(true).unwrap();
             // std::io::stdout().write_all(&output.stdout).unwrap();
             // std::io::stderr().write_all(&output.stderr).unwrap();

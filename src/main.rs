@@ -263,19 +263,15 @@ fn main() {
             // Dashboard handles all types of events.
             dashboard.input(&event);
             match event {
-                Event::RedrawRequested(_) => {
+                Event::RedrawRequested(_) => {}
+                Event::MainEventsCleared => {
                     canvas.update();
                     canvas.render_canvas();
                     canvas.post_render();
+
                     dashboard.update();
                     dashboard.render_dashboard();
                     dashboard.post_render();
-                }
-                Event::MainEventsCleared => {
-                    // RedrawRequested will only trigger once, unless we manually
-                    // request it.
-                    canvas.window.request_redraw();
-                    dashboard.frame_tick();
                 }
                 Event::WindowEvent {
                     ref event,
