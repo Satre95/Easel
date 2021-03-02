@@ -34,7 +34,7 @@ impl Recorder {
             _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba8UnormSrgb")
         };
         let resolution_string = format!("{}x{}", width.to_string(), height.to_string());
-        let buf_size: usize = 60 * 16 * width as usize * height as usize;
+        let buf_size: usize = 60 * 4 * width as usize * height as usize;
         let (our_sender, thread_receiver) = std::sync::mpsc::sync_channel(buf_size);
         let (thread_sender, our_receiver) = std::sync::mpsc::channel();
         let framerate_str = framerate.to_string();
@@ -44,11 +44,11 @@ impl Recorder {
                 "-y",
                 "-f",
                 "rawvideo",
-                "-s:v",
-                &resolution_string,
                 "-framerate",
                 &framerate_str,
-                "-pix_fmt",
+                "-video_size",
+                &resolution_string,
+                "-pixel_format",
                 pix_fmt,
             ];
             if cfg!(target_os = "windows") {
@@ -63,6 +63,8 @@ impl Recorder {
                     "3",
                     "-pix_fmt",
                     "yuv420p",
+                    "-r",
+                    &framerate_str,
                     // "-profile",
                     // "high444p",
                     // "-crf",
@@ -75,8 +77,11 @@ impl Recorder {
                     "-",
                     "-c:v",
                     "h264_videotoolbox",
+                    // "libx264",
                     "-pix_fmt",
                     "yuv420p",
+                    "-r",
+                    &framerate_str,
                     // "-profile",
                     // "high444p",
                     // "-crf",

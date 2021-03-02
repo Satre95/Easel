@@ -5,6 +5,35 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Lava Lamp",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=easel",
+                    "--release"
+                ],
+                "filter": {
+                    "name": "easel",
+                    "kind": "bin",
+                }
+            },
+            "cwd": "${workspaceFolder}/Shader-Art/shaders",
+            "env": {
+                "RUST_LOG": "easel=info"
+            },
+            "args": [
+                "lava-lamp.frag",
+                "-w",
+                "1024",
+                "-h",
+                "1024",
+                "-u",
+                "lava-lamp-uniforms.json"
+            ],
+        },
+        {
             "name": "Color Wipe",
             "type": "lldb",
             "request": "launch",
