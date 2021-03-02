@@ -1,0 +1,3 @@
+[submodule "Shader-Art"]
+	path = Shader-Art
+	url = git@github.com:Satre95/Shader-Art.git

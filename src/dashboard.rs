@@ -37,7 +37,7 @@ pub struct DashboardState {
     pub painting_filename: String,
     pub recording_filename: String,
     /// Unit: seconds
-    pub movie_runtime: usize,
+    pub movie_framerate: i32,
     /// Only available on macOS.
     pub open_painting_externally: bool,
     pub pause_while_painting: bool,
@@ -61,7 +61,7 @@ impl DashboardState {
             recording_resolution: IntVector2::new(512, 512),
             painting_filename: String::from("Painting"),
             recording_filename: String::from("Muybridge"),
-            movie_runtime: 60,
+            movie_framerate: 60,
             open_painting_externally: true,
             pause_while_painting: true,
             painting_progress_receiver: None,
@@ -109,7 +109,7 @@ pub struct Dashboard {
     transmitter: SyncSender<DashboardMessage>,
     receiver: Receiver<CanvasMessage>,
     recorder: Option<Recorder>,
-    recorder_init_time: Instant,
+    last_movie_frame_time: Option<Instant>,
 }
 
 impl Dashboard {
@@ -214,7 +214,7 @@ impl Dashboard {
             transmitter,
             receiver,
             recorder: None,
-            recorder_init_time: std::time::Instant::now(),
+            last_movie_frame_time: None,
         }
     }
 
@@ -266,6 +266,7 @@ impl Dashboard {
             let painting_height = &mut self.state.painting_resolution.y;
             let recording_width = &mut self.state.recording_resolution.x;
             let recording_height = &mut self.state.recording_resolution.y;
+            let movie_framerate = &mut self.state.movie_framerate;
             let mut painting_filename = ImString::with_capacity(256);
             let mut recording_filename = ImString::with_capacity(256);
             let open_painting_externally = &mut self.state.open_painting_externally;
@@ -391,6 +392,8 @@ impl Dashboard {
                             .build();
                         ui.input_int(im_str!("Height##Movie"), recording_height)
                             .build();
+                        ui.input_int(im_str!("Framerate##Movie"), movie_framerate)
+                            .build();
 
                         let file_input =
                             ui.input_text(im_str!("Filename##Movie"), &mut recording_filename);
@@ -404,7 +407,6 @@ impl Dashboard {
                             record_button_pressed =
                                 ui.button(im_str!("Start##Recording"), [gui_width, 25.0]);
                         }
-                        // ui.checkbox(im_str!("Pause While Recording"), pause_while_recording);
                     }
                     //---------------------------------
                     if !user_uniforms.is_empty() {
@@ -469,10 +471,9 @@ impl Dashboard {
                         self.state.recording_resolution.x as u32,
                         self.state.recording_resolution.y as u32,
                         MOVIE_TEXTURE_FORMAT,
-                        60,
+                        *movie_framerate as u32,
                         format!("{}.mp4", self.state.recording_filename),
                     ));
-                    self.recorder_init_time = std::time::Instant::now();
                 } else {
                     let recorder = self.recorder.as_mut().unwrap();
                     recorder.stop();
@@ -613,6 +614,7 @@ impl Dashboard {
     /// Checks the receiver queue for any incoming messages, among other things.
     pub fn update(&mut self) {
         self.device.poll(wgpu::Maintain::Poll);
+        let update_time = std::time::Instant::now();
         // First, check if we have received any messages and act accordingly
         loop {
             let msg_result = self.receiver.try_recv();
@@ -623,15 +625,24 @@ impl Dashboard {
         }
 
         if let Some(ref mut recorder) = self.recorder {
-            let time_since_start = (Instant::now() - self.recorder_init_time).as_secs_f64();
-            // If we have not stopped, keep requesting frames. Wait a few seconds to give ffmpeg time to start.
-            if !recorder.stop_signal_sent && time_since_start > 7.0 {
+            if self.state.movie_framerate < 1 {
+                panic!("Invalid framerate {} provided!", self.state.movie_framerate);
+            }
+            // If we have not stopped, keep requesting frames on the selected FPS interval
+            let mut frame_needed = !recorder.stop_signal_sent;
+            if let Some(last_frame_time) = self.last_movie_frame_time.as_mut() {
+                let seconds_per_frame = 1.0 / (self.state.movie_framerate as f64);
+                let delta = (update_time - *last_frame_time).as_secs_f64();
+                frame_needed = frame_needed && delta >= seconds_per_frame;
+            }
+            if frame_needed {
                 self.transmitter
                     .send(DashboardMessage::MovieRenderRequested(UIntVector2::new(
                         self.state.recording_resolution.x as u32,
                         self.state.recording_resolution.y as u32,
                     )))
                     .unwrap();
+                self.last_movie_frame_time = Some(update_time);
             }
             // If finished, cleanup.
             if recorder.poll() {
