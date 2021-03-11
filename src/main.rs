@@ -124,11 +124,13 @@ use winit::{
 use crate::canvas::message::CanvasMessage;
 use crate::dashboard::{Dashboard, DashboardMessage};
 use canvas::Canvas;
-use std::cmp::max;
 use std::fs;
 use std::path::Path;
 use std::sync::mpsc::sync_channel;
+use std::{cmp::max, time::Instant};
 use winit::dpi::PhysicalSize;
+
+static UPDATE_INTERVAL_MS: u128 = 11;
 
 fn main() {
     env_logger::init();
@@ -259,19 +261,25 @@ fn main() {
         // Setup Dashboard state
         let mut dashboard = block_on(Dashboard::new(dashboard_window, dashboard_tx, dashboard_rx));
 
+        let mut last_render_time = Instant::now();
         event_loop.run(move |event, _, control_flow| {
             // Dashboard handles all types of events.
             dashboard.input(&event);
             match event {
                 Event::RedrawRequested(_) => {}
                 Event::MainEventsCleared => {
-                    canvas.update();
-                    canvas.render_canvas();
-                    canvas.post_render();
+                    let now = Instant::now();
+                    let delta = (now - last_render_time).as_millis();
+                    if delta >= UPDATE_INTERVAL_MS {
+                        canvas.update();
+                        canvas.render_canvas();
+                        canvas.post_render();
 
-                    dashboard.update();
-                    dashboard.render_dashboard();
-                    dashboard.post_render();
+                        dashboard.update();
+                        dashboard.render_dashboard();
+                        dashboard.post_render();
+                        last_render_time = now;
+                    }
                 }
                 Event::WindowEvent {
                     ref event,
