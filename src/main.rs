@@ -130,7 +130,7 @@ use std::sync::mpsc::sync_channel;
 use std::{cmp::max, time::Instant};
 use winit::dpi::PhysicalSize;
 
-static UPDATE_INTERVAL_MS: u128 = 11;
+static UPDATE_INTERVAL_MS: u128 = 16;
 
 fn main() {
     env_logger::init();
