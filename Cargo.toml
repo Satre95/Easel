@@ -24,9 +24,9 @@ env_logger = "0.8.2"
 futures = "0.3.12"
 half = "1.7.1"
 image = "0.23.12"
-imgui = "0.6.1"
-imgui-wgpu = "0.12.0"
-imgui-winit-support = "0.6.1"
+imgui = "0.7.0"
+imgui-wgpu = "0.14.0"
+wgpu = "0.7.0"
 json = "0.12.4"
 log = "0.4.13"
 notify = "4.0.15"
@@ -43,8 +43,9 @@ winit = "0.24.0"
 features = ["derive"]
 version = "1.5.0"
 
-[dependencies.wgpu]
-version = "0.6.2"
+[dependencies.imgui-winit-support]
+version = "0.7.0"
+features = ["winit-24"]
 
 [[bin]]
 doc = true
@@ -53,3 +54,6 @@ path = "src/main.rs"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--all-targets", "--release"]
+
+[profile.dev]
+split-debuginfo = "unpacked"

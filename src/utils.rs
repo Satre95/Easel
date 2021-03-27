@@ -10,9 +10,7 @@ use std::io::BufWriter;
 use std::path::Path;
 use std::sync::mpsc::{channel, Receiver};
 use std::vec::Vec;
-use wgpu::{
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, InputStepMode, VertexBufferDescriptor,
-};
+use wgpu::{BindGroupLayoutDescriptor, BindGroupLayoutEntry};
 
 /// Private helper method to compile text shader using shaderc library.
 fn load_shader_source(
@@ -228,124 +226,90 @@ pub fn create_pipelines(
     wgpu::RenderPipeline,
     wgpu::RenderPipeline,
 ) {
+    let vertex_state = wgpu::VertexState {
+        module: &vs_module,
+        entry_point: "main",
+        buffers: &[],
+    };
+    let primitive_state = wgpu::PrimitiveState {
+        topology: wgpu::PrimitiveTopology::TriangleList,
+        strip_index_format: None,
+        front_face: wgpu::FrontFace::Ccw,
+        cull_mode: wgpu::CullMode::None,
+        polygon_mode: wgpu::PolygonMode::Fill,
+    };
+    let multisample_state = wgpu::MultisampleState {
+        count: 1,
+        mask: !0,
+        alpha_to_coverage_enabled: false,
+    };
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Canvas Pipeline"),
         layout: Some(&layout),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
-            module: &vs_module,
-            entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+        vertex: vertex_state.clone(),
+        fragment: Some(wgpu::FragmentState {
             module: &fs_module,
             entry_point: "main",
+            targets: &[wgpu::ColorTargetState {
+                format: texture_formats.0,
+                color_blend: wgpu::BlendState::REPLACE,
+                alpha_blend: wgpu::BlendState::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
         }),
-        rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: wgpu::CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: texture_formats.0,
-            color_blend: wgpu::BlendDescriptor::REPLACE,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            write_mask: wgpu::ColorWrite::ALL,
-        }],
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-        depth_stencil_state: None,                                 // 2.
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint32, // 3.
-            vertex_buffers: &[VertexBufferDescriptor {
-                attributes: &[],
-                step_mode: InputStepMode::Vertex,
-                stride: 0,
-            }], // 4.
-        },
-        sample_count: 1,                  // 5.
-        sample_mask: !0,                  // 6.
-        alpha_to_coverage_enabled: false, // 7.
+        primitive: primitive_state,
+        depth_stencil: None,
+        multisample: multisample_state.clone(),
     });
 
     let painting_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Painting Pipeline"),
         layout: Some(&layout),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
-            module: &vs_module,
-            entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+        vertex: vertex_state.clone(),
+        fragment: Some(wgpu::FragmentState {
             module: &fs_module,
             entry_point: "main",
+            targets: &[wgpu::ColorTargetState {
+                format: texture_formats.1,
+                color_blend: wgpu::BlendState::REPLACE,
+                alpha_blend: wgpu::BlendState::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
         }),
-        rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode: wgpu::CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: texture_formats.1,
-            color_blend: wgpu::BlendDescriptor::REPLACE,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            write_mask: wgpu::ColorWrite::ALL,
-        }],
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-        depth_stencil_state: None,                                 // 2.
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint32, // 3.
-            vertex_buffers: &[VertexBufferDescriptor {
-                attributes: &[],
-                step_mode: InputStepMode::Vertex,
-                stride: 0,
-            }], // 4.
+            polygon_mode: wgpu::PolygonMode::Fill,
         },
-        sample_count: 1,                  // 5.
-        sample_mask: !0,                  // 6.
-        alpha_to_coverage_enabled: false, // 7.
+        depth_stencil: None,
+        multisample: multisample_state.clone(),
     });
 
     let movie_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Movie Pipeline"),
         layout: Some(&layout),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
-            module: &vs_module,
-            entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+        vertex: vertex_state.clone(),
+        fragment: Some(wgpu::FragmentState {
             module: &fs_module,
             entry_point: "main",
+            targets: &[wgpu::ColorTargetState {
+                format: texture_formats.2,
+                color_blend: wgpu::BlendState::REPLACE,
+                alpha_blend: wgpu::BlendState::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
         }),
-        rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode: wgpu::CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: texture_formats.2,
-            color_blend: wgpu::BlendDescriptor::REPLACE,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            write_mask: wgpu::ColorWrite::ALL,
-        }],
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-        depth_stencil_state: None,                                 // 2.
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint32, // 3.
-            vertex_buffers: &[VertexBufferDescriptor {
-                attributes: &[],
-                step_mode: InputStepMode::Vertex,
-                stride: 0,
-            }], // 4.
+            polygon_mode: wgpu::PolygonMode::Fill,
         },
-        sample_count: 1,                  // 5.
-        sample_mask: !0,                  // 6.
-        alpha_to_coverage_enabled: false, // 7.
+        depth_stencil: None,
+        multisample: multisample_state.clone(),
     });
 
     (render_pipeline, painting_pipeline, movie_pipeline)
@@ -369,16 +333,19 @@ pub fn create_swap_chain_pipeline(
                         binding: 0,
                         count: None,
                         visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler { comparison: false },
+                        ty: wgpu::BindingType::Sampler {
+                            filtering: true,
+                            comparison: false,
+                        },
                     },
                     BindGroupLayoutEntry {
                         binding: 1,
                         count: None,
                         visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::SampledTexture {
-                            component_type: wgpu::TextureComponentType::Float,
-                            dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: true,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
                         },
                     },
                 ],
@@ -386,46 +353,47 @@ pub fn create_swap_chain_pipeline(
         ],
     });
 
+    let vertex_state = wgpu::VertexState {
+        module: &vs_module,
+        entry_point: "main",
+        buffers: &[],
+    };
+    let primitive_state = wgpu::PrimitiveState {
+        topology: wgpu::PrimitiveTopology::TriangleList,
+        strip_index_format: None,
+        front_face: wgpu::FrontFace::Ccw,
+        cull_mode: wgpu::CullMode::None,
+        polygon_mode: wgpu::PolygonMode::Fill,
+    };
+    let multisample_state = wgpu::MultisampleState {
+        count: 1,
+        mask: !0,
+        alpha_to_coverage_enabled: false,
+    };
+
+    let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+        label: Some("Painting Fragment Shader"),
+        source: wgpu::util::make_spirv(RENDER_TO_SWAP_CHAIN_TEX_SHADER_BYTES),
+        flags: wgpu::ShaderFlags::VALIDATION,
+    });
+
     let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("Swap Chain Pipeline"),
         layout: Some(&layout),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
-            module: &vs_module,
+        vertex: vertex_state,
+        fragment: Some(wgpu::FragmentState {
+            module: &fs_module,
             entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-            module: &device.create_shader_module(wgpu::util::make_spirv(
-                RENDER_TO_SWAP_CHAIN_TEX_SHADER_BYTES,
-            )),
-            entry_point: "main",
+            targets: &[wgpu::ColorTargetState {
+                format: sc_tex_format,
+                alpha_blend: wgpu::BlendState::REPLACE,
+                color_blend: wgpu::BlendState::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
         }),
-        rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: wgpu::CullMode::None,
-            depth_bias: 0,
-            depth_bias_slope_scale: 0.0,
-            depth_bias_clamp: 0.0,
-            clamp_depth: false,
-        }),
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: sc_tex_format,
-            color_blend: wgpu::BlendDescriptor::REPLACE,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            write_mask: wgpu::ColorWrite::ALL,
-        }],
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-        depth_stencil_state: None,                                 // 2.
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint32, // 3.
-            vertex_buffers: &[VertexBufferDescriptor {
-                attributes: &[],
-                step_mode: InputStepMode::Vertex,
-                stride: 0,
-            }], // 4.
-        },
-        sample_count: 1,                  // 5.
-        sample_mask: !0,                  // 6.
-        alpha_to_coverage_enabled: false, // 7.
+        primitive: primitive_state,
+        depth_stencil: None,
+        multisample: multisample_state,
     });
 
     pipeline

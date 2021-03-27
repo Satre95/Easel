@@ -15,6 +15,7 @@ pub fn default_color_sampler(device: &wgpu::Device) -> wgpu::Sampler {
         lod_max_clamp: std::f32::MAX,
         compare: None,
         anisotropy_clamp: None,
+        border_color: None,
     })
 }
 

@@ -3,7 +3,7 @@ use std::{mem, slice};
 pub trait PushConstant {
     fn size(&self) -> usize;
     fn name(&self) -> &str;
-    fn bytes(&self) -> Vec<u32>;
+    fn bytes(&self) -> Vec<u8>;
 }
 
 #[repr(C)]
@@ -29,12 +29,12 @@ impl<T> PushConstant for TypedPushConstant<T> {
         &self.name
     }
 
-    fn bytes(&self) -> Vec<u32> {
+    fn bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         let vp: *const T = &self.value;
-        let bp: *const u32 = vp as *const _;
-        let bs: &[u32] =
-            unsafe { slice::from_raw_parts(bp, mem::size_of::<T>() / mem::size_of::<u32>()) };
+        let bp: *const u8 = vp as *const _;
+        let bs: &[u8] =
+            unsafe { slice::from_raw_parts(bp, mem::size_of::<T>() / mem::size_of::<u8>()) };
         bytes.extend_from_slice(&bs);
         bytes
     }

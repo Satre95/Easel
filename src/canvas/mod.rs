@@ -4,8 +4,11 @@ use crate::uniforms::{load_uniforms_from_json, Uniforms, UserUniform};
 use crate::vector::{IntVector2, IntVector4, UIntVector2, Vector2, Vector4};
 use crate::{dashboard::DashboardMessage, recording::MOVIE_TEXTURE_FORMAT};
 use chrono::Datelike;
-use std::sync::mpsc::{channel, Receiver, SyncSender};
 use std::vec::Vec;
+use std::{
+    num::NonZeroU64,
+    sync::mpsc::{channel, Receiver, SyncSender},
+};
 use stopwatch::Stopwatch;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
@@ -158,9 +161,9 @@ impl Canvas {
             ..Default::default()
         };
         let device_desc = wgpu::DeviceDescriptor {
+            label: None,
             features: adapter.features(),
             limits,
-            shader_validation: true,
         };
 
         let (device, queue) = adapter.request_device(&device_desc, None).await.unwrap();
@@ -219,7 +222,7 @@ impl Canvas {
         //------------------------------------------------------------------------------------------
         // Setup swap chain
         let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
@@ -229,8 +232,16 @@ impl Canvas {
 
         //------------------------------------------------------------------------------------------
         // Load shaders.
-        let vs_module = device.create_shader_module(wgpu::util::make_spirv(VS_MODULE_BYTES));
-        let fs_module = device.create_shader_module(wgpu::util::make_spirv(&fs_spirv_data));
+        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Vertex Shader"),
+            source: wgpu::util::make_spirv(VS_MODULE_BYTES),
+            flags: wgpu::ShaderFlags::VALIDATION,
+        });
+        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Painting Fragment Shader"),
+            source: wgpu::util::make_spirv(&fs_spirv_data),
+            flags: wgpu::ShaderFlags::VALIDATION,
+        });
 
         //------------------------------------------------------------------------------------------
         // Create the bind group layout and entries.
@@ -242,8 +253,9 @@ impl Canvas {
             bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::UniformBuffer {
-                    dynamic: false,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
                     min_binding_size: None,
                 },
                 count: None,
@@ -252,8 +264,9 @@ impl Canvas {
                 bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::UniformBuffer {
-                        dynamic: false,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
                         min_binding_size: None,
                     },
                     count: None,
@@ -274,17 +287,20 @@ impl Canvas {
             bind_group_layout_entries.push(BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::Sampler { comparison: false },
+                ty: wgpu::BindingType::Sampler {
+                    filtering: true,
+                    comparison: false,
+                },
                 count: None,
             });
             for i in 1..=asset_textures.len() {
                 bind_group_layout_entries.push(BindGroupLayoutEntry {
                     binding: i as u32,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::SampledTexture {
-                        component_type: wgpu::TextureComponentType::Float,
-                        multisampled: true,
-                        dimension: wgpu::TextureViewDimension::D2,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
                     },
                     count: None,
                 });
@@ -305,17 +321,21 @@ impl Canvas {
             // Provided Uniforms first.
             primary_bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::Buffer(
-                    u_buffer.slice(0..(std::mem::size_of_val(&uniforms) as u64)),
-                ),
+                resource: BindingResource::Buffer {
+                    buffer: &u_buffer,
+                    offset: 0,
+                    size: Some(NonZeroU64::new(std::mem::size_of_val(&uniforms) as u64).unwrap()),
+                },
             });
             // Custom Uniforms next, if enabled.
             if let Some(cu_buffer) = &custom_uniforms_buffer {
                 primary_bind_group_entries.push(wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Buffer(
-                        cu_buffer.slice(0..(custom_uniforms_buffer_size as u64)),
-                    ),
+                    resource: BindingResource::Buffer {
+                        buffer: &cu_buffer,
+                        offset: 0,
+                        size: Some(NonZeroU64::new(custom_uniforms_buffer_size as u64).unwrap()),
+                    },
                 });
             }
 
@@ -680,7 +700,7 @@ impl Canvas {
                 depth: 1,
             },
             format: RENDER_TEXTURE_FORMAT,
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT | wgpu::TextureUsage::SAMPLED,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT | wgpu::TextureUsage::SAMPLED,
             label: Some("Canvas Render"),
             dimension: wgpu::TextureDimension::D2,
             mip_level_count: 1,
@@ -698,6 +718,7 @@ impl Canvas {
         // First, render using the shader.
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &render_tex_view,
                     resolve_target: None,
@@ -775,16 +796,19 @@ impl Canvas {
                         binding: 0,
                         count: None,
                         visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler { comparison: false },
+                        ty: wgpu::BindingType::Sampler {
+                            filtering: true,
+                            comparison: false,
+                        },
                     },
                     BindGroupLayoutEntry {
                         binding: 1,
                         count: None,
                         visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::SampledTexture {
-                            component_type: wgpu::TextureComponentType::Float,
-                            dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: true,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
                         },
                     },
                 ],
@@ -805,6 +829,7 @@ impl Canvas {
         });
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.output.view,
                     resolve_target: None,
@@ -841,7 +866,7 @@ impl Canvas {
                 depth: 1,
             },
             format: PAINTING_TEXTURE_FORMAT,
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT
                 | wgpu::TextureUsage::COPY_SRC
                 | wgpu::TextureUsage::SAMPLED,
             label: Some("Painting"),
@@ -876,6 +901,7 @@ impl Canvas {
         {
             let painting_view = painting.create_view(&wgpu::TextureViewDescriptor::default());
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &painting_view,
                     resolve_target: None,
@@ -1065,10 +1091,18 @@ impl Canvas {
                 };
                 let fs_module = self
                     .device
-                    .create_shader_module(wgpu::util::make_spirv(&fs_spirv_data));
+                    .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                        label: Some("Vertex Shader"),
+                        source: wgpu::util::make_spirv(&fs_spirv_data),
+                        flags: wgpu::ShaderFlags::VALIDATION,
+                    });
                 let vs_module = self
                     .device
-                    .create_shader_module(wgpu::util::make_spirv(VS_MODULE_BYTES));
+                    .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                        label: Some("Vertex Shader"),
+                        source: wgpu::util::make_spirv(VS_MODULE_BYTES),
+                        flags: wgpu::ShaderFlags::VALIDATION,
+                    });
 
                 let layouts = [&self.bind_group_layouts[0], &self.bind_group_layouts[1]];
                 let mut constants_for_pipeline = vec![];
@@ -1184,7 +1218,7 @@ impl Canvas {
                 depth: 1,
             },
             format: MOVIE_TEXTURE_FORMAT,
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT
                 | wgpu::TextureUsage::COPY_SRC
                 | wgpu::TextureUsage::SAMPLED,
             label: Some("Painting"),
@@ -1219,6 +1253,7 @@ impl Canvas {
         {
             let painting_view = painting.create_view(&wgpu::TextureViewDescriptor::default());
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &painting_view,
                     resolve_target: None,

@@ -1,7 +1,9 @@
+use std::num::NonZeroU64;
+
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingResource, InputStepMode, LoadOp, Operations, PipelineLayoutDescriptor,
-    RenderPassDescriptor, RenderPipelineDescriptor, VertexBufferDescriptor,
+    BindingResource, LoadOp, Operations, PipelineLayoutDescriptor, RenderPassDescriptor,
+    RenderPipelineDescriptor,
 };
 
 /// A struct representing a post-processing shader to run after main fragment shader has finished.
@@ -20,9 +22,16 @@ impl PostProcess {
         custom_uniforms_provided: bool,
     ) -> Self {
         // Load shaders
-        let vs_module =
-            device.create_shader_module(wgpu::util::make_spirv(crate::canvas::VS_MODULE_BYTES));
-        let fs_module = device.create_shader_module(wgpu::util::make_spirv(&shader_module));
+        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Vertex Shader"),
+            source: wgpu::util::make_spirv(crate::canvas::VS_MODULE_BYTES),
+            flags: wgpu::ShaderFlags::VALIDATION,
+        });
+        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("Vertex Shader"),
+            source: wgpu::util::make_spirv(&shader_module),
+            flags: wgpu::ShaderFlags::VALIDATION,
+        });
 
         // Create bind group layout and entries
         let num_uniform_bind_group_layout_entries = (custom_uniforms_provided as u32) + 1;
@@ -32,9 +41,10 @@ impl PostProcess {
                 binding: i,
                 count: None,
                 visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::UniformBuffer {
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
                     min_binding_size: None,
-                    dynamic: false,
+                    has_dynamic_offset: false,
                 },
             });
         }
@@ -52,16 +62,19 @@ impl PostProcess {
                         binding: 0,
                         count: None,
                         visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler { comparison: false },
+                        ty: wgpu::BindingType::Sampler {
+                            filtering: true,
+                            comparison: false,
+                        },
                     },
                     BindGroupLayoutEntry {
                         binding: 1,
                         count: None,
                         visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::SampledTexture {
-                            component_type: wgpu::TextureComponentType::Float,
-                            multisampled: true,
-                            dimension: wgpu::TextureViewDimension::D2,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
                         },
                     },
                 ],
@@ -73,86 +86,71 @@ impl PostProcess {
             bind_group_layouts: &[&uniforms_bind_group_layout, &painting_bind_group_layout],
             push_constant_ranges: &[],
         });
+        let render_frag_state = wgpu::FragmentState {
+            module: &fs_module,
+            entry_point: "main",
+            targets: &[wgpu::ColorTargetState {
+                format: crate::canvas::RENDER_TEXTURE_FORMAT,
+                color_blend: wgpu::BlendState::REPLACE,
+                alpha_blend: wgpu::BlendState::REPLACE,
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
+        };
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Postprocess sRGB Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vs_module,
-                entry_point: "main", // 1.
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                // 2.
-                module: &fs_module,
                 entry_point: "main",
-            }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                buffers: &[],
+            },
+            fragment: Some(render_frag_state),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::None,
-                depth_bias: 0,
-                depth_bias_slope_scale: 0.0,
-                depth_bias_clamp: 0.0,
-                clamp_depth: false,
-            }),
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: crate::canvas::RENDER_TEXTURE_FORMAT,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
+                polygon_mode: wgpu::PolygonMode::Fill,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+        });
+        let painting_frag_state = wgpu::FragmentState {
+            module: &fs_module,
+            entry_point: "main",
+            targets: &[wgpu::ColorTargetState {
+                format: crate::canvas::PAINTING_TEXTURE_FORMAT,
+                color_blend: wgpu::BlendState::REPLACE,
+                alpha_blend: wgpu::BlendState::REPLACE,
                 write_mask: wgpu::ColorWrite::ALL,
             }],
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-            depth_stencil_state: None,                                 // 2.
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint32, // 3.
-                vertex_buffers: &[VertexBufferDescriptor {
-                    attributes: &[],
-                    step_mode: InputStepMode::Vertex,
-                    stride: 0,
-                }], // 4.
-            },
-            sample_count: 1,                  // 5.
-            sample_mask: !0,                  // 6.
-            alpha_to_coverage_enabled: false, // 7.
-        });
-
+        };
         let painting_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Postprocess sRGB Pipeline"),
             layout: Some(&render_pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vs_module,
-                entry_point: "main", // 1.
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                // 2.
-                module: &fs_module,
                 entry_point: "main",
-            }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                buffers: &[],
+            },
+            fragment: Some(painting_frag_state),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::None,
-                depth_bias: 0,
-                depth_bias_slope_scale: 0.0,
-                depth_bias_clamp: 0.0,
-                clamp_depth: false,
-            }),
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: crate::canvas::PAINTING_TEXTURE_FORMAT,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-            depth_stencil_state: None,                                 // 2.
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint32, // 3.
-                vertex_buffers: &[VertexBufferDescriptor {
-                    attributes: &[],
-                    step_mode: InputStepMode::Vertex,
-                    stride: 0,
-                }], // 4.
+                polygon_mode: wgpu::PolygonMode::Fill,
             },
-            sample_count: 1,                  // 5.
-            sample_mask: !0,                  // 6.
-            alpha_to_coverage_enabled: false, // 7.
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
         });
         Self {
             uniforms_bind_group_layout,
@@ -192,12 +190,20 @@ impl PostProcess {
             let mut entries = vec![];
             entries.push(BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::Buffer(uniforms.0.slice(0..(uniforms.1 as u64))),
+                resource: BindingResource::Buffer {
+                    buffer: &uniforms.0,
+                    offset: 0,
+                    size: NonZeroU64::new(uniforms.1 as u64),
+                },
             });
             if let Some(custom) = user_uniforms {
                 entries.push(BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Buffer(custom.0.slice(0..(custom.1 as u64))),
+                    resource: BindingResource::Buffer {
+                        buffer: &custom.0,
+                        offset: 0,
+                        size: NonZeroU64::new(custom.1 as u64),
+                    },
                 });
             }
             bind_groups.push(device.create_bind_group(&BindGroupDescriptor {
@@ -224,6 +230,7 @@ impl PostProcess {
 
         // Encode render commands
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            label: None,
             color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                 attachment: &output,
                 resolve_target: None,

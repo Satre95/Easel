@@ -138,9 +138,9 @@ impl Dashboard {
             .await
             .unwrap();
         let device_desc = wgpu::DeviceDescriptor {
+            label: None,
             features: adapter.features(),
             limits: Default::default(),
-            shader_validation: true,
         };
 
         let (device, mut queue) = adapter.request_device(&device_desc, None).await.unwrap();
@@ -148,7 +148,7 @@ impl Dashboard {
         //------------------------------------------------------------------------------------------
         // Setup swap chain
         let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
@@ -495,6 +495,7 @@ impl Dashboard {
 
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.output.view,
                     resolve_target: None,
@@ -527,7 +528,7 @@ impl Dashboard {
                 WindowEvent::Resized(physical_size) => {
                     self.size = *physical_size;
                     self.sc_desc = wgpu::SwapChainDescriptor {
-                        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+                        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
                         format: wgpu::TextureFormat::Bgra8UnormSrgb,
                         width: physical_size.width as u32,
                         height: physical_size.height as u32,
