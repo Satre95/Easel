@@ -26,13 +26,13 @@ half = "1.7.1"
 image = "0.23.12"
 imgui = "0.7.0"
 imgui-wgpu = "0.14.0"
-wgpu = "0.7.0"
 json = "0.12.4"
 log = "0.4.13"
 notify = "4.0.15"
 raw-window-handle = "0.3.3"
 shaderc = "0.7.0"
 stopwatch = "0.0.7"
+wgpu = "0.7.0"
 winit = "0.24.0"
 
 #[dependencies.noise]
@@ -44,8 +44,8 @@ features = ["derive"]
 version = "1.5.0"
 
 [dependencies.imgui-winit-support]
-version = "0.7.0"
 features = ["winit-24"]
+version = "0.7.0"
 
 [[bin]]
 doc = true
