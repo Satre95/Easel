@@ -516,17 +516,34 @@ impl Canvas {
                 _ => true,
             },
             WindowEvent::CursorMoved { position, .. } => {
-                self.uniforms.mouse_info.z = self.uniforms.mouse_info.x;
-                self.uniforms.mouse_info.w = self.uniforms.mouse_info.y;
-                self.uniforms.mouse_info.x = position.x as f32;
-                self.uniforms.mouse_info.y = position.y as f32;
+                self.uniforms.mouse_position.z = self.uniforms.mouse_position.x;
+                self.uniforms.mouse_position.w = self.uniforms.mouse_position.y;
+                self.uniforms.mouse_position.x = position.x as f32;
+                self.uniforms.mouse_position.y = position.y as f32;
                 // Send message.
                 self.transmitter
                     .send(CanvasMessage::MouseMoved(Vector2::new(
-                        self.uniforms.mouse_info.x,
-                        self.uniforms.mouse_info.y,
+                        self.uniforms.mouse_position.x,
+                        self.uniforms.mouse_position.y,
                     )))
                     .unwrap();
+                true
+            }
+            WindowEvent::MouseInput { button, state, .. } => {
+                match button {
+                    MouseButton::Left => {
+                        self.uniforms.mouse_button.x = (*state == ElementState::Pressed) as i32
+                    }
+                    MouseButton::Right => {
+                        self.uniforms.mouse_button.y = (*state == ElementState::Pressed) as i32
+                    }
+                    MouseButton::Middle => {
+                        self.uniforms.mouse_button.z = (*state == ElementState::Pressed) as i32
+                    }
+                    MouseButton::Other(_) => {
+                        self.uniforms.mouse_button.w = (*state == ElementState::Pressed) as i32
+                    }
+                }
                 true
             }
             WindowEvent::Resized(physical_size) => {

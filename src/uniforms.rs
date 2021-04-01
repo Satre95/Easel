@@ -4,7 +4,7 @@ use crate::utils::{convert_bytes_to_value, convert_value_to_bytes};
 use crate::vector::{IntVector4, Vector4};
 use bytemuck::{Pod, Zeroable};
 use imgui::ImString;
-use log::error;
+use log::{debug, error};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
@@ -12,29 +12,38 @@ use log::error;
 pub struct Uniforms {
     /// Viewport resolution (in pixels)
     pub resolution: Vector4,
+    /// Current mouse pixel coordinates
+    /// xy: current, zw: last position.
+    pub mouse_position: Vector4,
+    // Whether the mouse button is pressed or not.
+    // x: left, y: right, z: middle mouse button, w: other
+    pub mouse_button: IntVector4,
+    /// Year, month, day, w is unused.
+    pub date: IntVector4,
     /// Elapsed time since program start, in seconds.
     pub time: f32,
     /// Time since last frame, in seconds
     pub time_delta: f32,
     /// Shader playback frame
     pub frame_num: u32,
-    /// Current mouse pixel coordinates
-    /// xy: current, zw: last click position.
-    pub mouse_info: Vector4,
     /// Number of textures bound.
     pub num_textures: u32,
-    /// Year, month, day, w is unused.
-    pub date: IntVector4,
 }
 
 impl Uniforms {
     pub fn new() -> Uniforms {
+        debug!(
+            "Uniforms struct is {} bytes",
+            std::mem::size_of::<Uniforms>()
+        );
+
         Uniforms {
             resolution: Vector4::zero(),
             time: 0.0,
             time_delta: 0.0,
             frame_num: 0,
-            mouse_info: Vector4::zero(),
+            mouse_position: Vector4::zero(),
+            mouse_button: IntVector4::zero(),
             num_textures: 0,
             date: IntVector4::zero(),
         }

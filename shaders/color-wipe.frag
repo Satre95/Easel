@@ -5,7 +5,8 @@ layout(set = 0, binding = 0) uniform Uniforms {
     float u_time;
     float u_time_delta;
     uint u_frame_num;
-    vec4 u_mouse_info;
+    vec4 u_mouse_pos;
+    vec4 u_mouse_button_pressed;
 };
 
 layout(set = 0, binding = 1) uniform CustomUniforms { bool vertical_wipe; };
