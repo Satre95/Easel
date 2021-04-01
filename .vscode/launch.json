@@ -24,7 +24,7 @@
                 "RUST_LOG": "easel=info"
             },
             "args": [
-                "fm-modular-synthesis.frag",
+                "fm-synthesis.frag",
                 "-w",
                 "1024",
                 "-h",
