@@ -920,8 +920,8 @@ impl Canvas {
         // Modify Uniforms as necessary for painting render
         {
             let mut painting_uniforms = self.uniforms.clone();
-            let width_ratio = self.uniforms.resolution.x as f32 / resolution.x as f32;
-            let height_ratio = self.uniforms.resolution.y as f32 / resolution.y as f32;
+            let width_ratio = resolution.x as f32 / self.uniforms.resolution.x as f32;
+            let height_ratio = resolution.y as f32 / self.uniforms.resolution.y as f32;
             painting_uniforms.mouse_position.x *= width_ratio;
             painting_uniforms.mouse_position.z *= width_ratio;
             painting_uniforms.mouse_position.y *= height_ratio;
