@@ -926,6 +926,8 @@ impl Canvas {
             painting_uniforms.mouse_position.z *= width_ratio;
             painting_uniforms.mouse_position.y *= height_ratio;
             painting_uniforms.mouse_position.w *= height_ratio;
+            painting_uniforms.resolution.x = resolution.x as f32;
+            painting_uniforms.resolution.y = resolution.y as f32;
 
             // Copy uniforms from CPU to staging buffer, then copy from staging buffer to main buf.
             let descriptor = BufferInitDescriptor {
