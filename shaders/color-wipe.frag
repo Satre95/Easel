@@ -2,11 +2,13 @@
 
 layout(set = 0, binding = 0) uniform Uniforms {
     vec4 u_resolution;
+    vec4 u_mouse_info;
+    ivec4 u_mouse_button_pressed;
+    ivec4 u_date;
     float u_time;
     float u_time_delta;
     uint u_frame_num;
-    vec4 u_mouse_pos;
-    vec4 u_mouse_button_pressed;
+    uint u_num_textures;
 };
 
 layout(set = 0, binding = 1) uniform CustomUniforms { bool vertical_wipe; };
