@@ -79,6 +79,7 @@ pub enum DashboardMessage {
     Pause,
     TitlebarStatusChanged,
     PaintingRenderRequested(UIntVector2),
+    PaintingResolutionUpdated(UIntVector2),
     MovieRenderRequested(UIntVector2),
     UniformUpdatedViaGUI(Box<dyn UserUniform>),
 }
@@ -650,6 +651,16 @@ impl Dashboard {
                 self.recorder.take().unwrap().finish();
             }
         }
+
+        // Ping Canvas with the currently set painting res
+        self.transmitter
+            .send(DashboardMessage::PaintingResolutionUpdated(
+                UIntVector2::new(
+                    self.state.painting_resolution.x as u32,
+                    self.state.painting_resolution.y as u32,
+                ),
+            ))
+            .unwrap();
     }
 
     pub fn post_render(&mut self) {

@@ -114,6 +114,8 @@ pub struct Canvas {
     json_file_watcher: Option<RecommendedWatcher>,
     /// Optional receiver of file watcher events for the JSON file.
     json_file_watcher_receiver: Option<Receiver<DebouncedEvent>>,
+    /// Painting Resolution
+    painting_resolution: UIntVector2,
 }
 
 impl Canvas {
@@ -468,6 +470,7 @@ impl Canvas {
             shader_file_watcher_receiver: None,
             json_file_watcher: None,
             json_file_watcher_receiver: None,
+            painting_resolution: UIntVector2::zero(),
         }
     }
 
@@ -506,6 +509,14 @@ impl Canvas {
                     self.transmitter
                         .send(CanvasMessage::PausePlayChanged)
                         .unwrap();
+                    true
+                }
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(VirtualKeyCode::P),
+                    ..
+                } => {
+                    self.create_painting(self.painting_resolution.clone());
                     true
                 }
                 KeyboardInput {
@@ -596,6 +607,9 @@ impl Canvas {
             }
             DashboardMessage::MovieRenderRequested(resolution) => {
                 self.create_movie_frame(resolution);
+            }
+            DashboardMessage::PaintingResolutionUpdated(resolution) => {
+                self.painting_resolution = resolution
             }
         }
     }
@@ -897,6 +911,39 @@ impl Canvas {
         // Create the output texture for post-processing.
         let post_process_tex = self.device.create_texture(&painting_tex_desc);
 
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Painting Encoder"),
+            });
+
+        // Modify Uniforms as necessary for painting render
+        {
+            let mut painting_uniforms = self.uniforms.clone();
+            let width_ratio = self.uniforms.resolution.x as f32 / resolution.x as f32;
+            let height_ratio = self.uniforms.resolution.y as f32 / resolution.y as f32;
+            painting_uniforms.mouse_position.x *= width_ratio;
+            painting_uniforms.mouse_position.z *= width_ratio;
+            painting_uniforms.mouse_position.y *= height_ratio;
+            painting_uniforms.mouse_position.w *= height_ratio;
+
+            // Copy uniforms from CPU to staging buffer, then copy from staging buffer to main buf.
+            let descriptor = BufferInitDescriptor {
+                label: Some("Uniforms Buffer"),
+                contents: bytemuck::bytes_of(&painting_uniforms),
+                usage: wgpu::BufferUsage::COPY_SRC,
+            };
+            let staging_buffer = self.device.create_buffer_init(&descriptor);
+
+            encoder.copy_buffer_to_buffer(
+                &staging_buffer,
+                0,
+                &self.uniforms_device_buffer,
+                0,
+                std::mem::size_of::<Uniforms>() as u64,
+            );
+        }
+
         // Buffer to copy texture into after all rendering finishes.
         let buffer_desc = wgpu::BufferDescriptor {
             label: Some("Painting Staging Buffer"),
@@ -906,12 +953,6 @@ impl Canvas {
             mapped_at_creation: false,
         };
         let buffer = self.device.create_buffer(&buffer_desc);
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Painting Encoder"),
-            });
 
         let painting_start_time = std::time::Instant::now();
         // First run the pipeline.
