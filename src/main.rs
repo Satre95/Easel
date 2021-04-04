@@ -121,7 +121,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::canvas::message::CanvasMessage;
+use crate::canvas::CanvasMessage;
 use crate::dashboard::{Dashboard, DashboardMessage};
 use canvas::Canvas;
 use std::fs;

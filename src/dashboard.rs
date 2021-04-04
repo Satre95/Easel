@@ -1,6 +1,4 @@
-use crate::{
-    canvas::message::CanvasMessage, recording::MOVIE_TEXTURE_FORMAT, uniforms::UserUniform,
-};
+use crate::{canvas::CanvasMessage, recording::MOVIE_TEXTURE_FORMAT, uniforms::UserUniform};
 use crate::{
     recording::Recorder,
     utils::{AsyncTiffWriter, WriteFinished},
