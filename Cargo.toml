@@ -32,7 +32,7 @@ notify = "4.0.15"
 raw-window-handle = "0.3.3"
 shaderc = "0.7.0"
 stopwatch = "0.0.7"
-wgpu = "0.7.0"
+wgpu = "0.7.1"
 winit = "0.24.0"
 
 #[dependencies.noise]
