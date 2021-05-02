@@ -29,6 +29,8 @@ use notify::{DebouncedEvent, RecommendedWatcher};
 /// Pre-compile vertex shader that renders a full-screen quad.
 pub static VS_MODULE_BYTES: &[u8] = include_bytes!("../../shaders/vert.spv");
 /// The [wgpu::TextureFormat] used when rendering to screen.
+/// We render to linear color as so that post-process ops are correctly applied in linear space.
+/// A final render pass is done before presenting to screen to convert to sRGB.
 pub static RENDER_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 /// The [wgpu::TextureFormat] used when rendering off-screen painting to write to disk.
 pub static PAINTING_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
@@ -92,8 +94,9 @@ pub struct Canvas {
     #[allow(dead_code)]
     textures: Vec<Box<dyn Texture>>,
     /// List of post-processing shaders.
-    /// By default includes sRGB Gamma application.
     postprocess_ops: Vec<PostProcess>,
+    /// Shader to apply sRGB Gamma for paintings.
+    srgb_postprocess: PostProcess,
     /// Stopwatch used for calculating time elapsed and other uniforms.
     stop_watch: Stopwatch,
     /// Pause/Play state. Also pauses [Self::stop_watch], which sets time data in [Self::uniforms].
@@ -412,12 +415,6 @@ impl Canvas {
         // Swap chain pipeline will never change and is separate from others.
         let swap_chain_pipeline =
             crate::utils::create_swap_chain_pipeline(&device, &vs_module, sc_desc.format);
-
-        let postprocess_ops: Vec<PostProcess> = vec![PostProcess::new(
-            &device,
-            Vec::from(POST_PROCESS_SRGB_SHADER_BYTES),
-            custom_uniforms_buffer.is_some(),
-        )];
         let mut custom_size = None;
         if custom_uniforms_buffer_size > 0 {
             custom_size = Some(custom_uniforms_buffer_size);
@@ -430,6 +427,11 @@ impl Canvas {
             ))
             .unwrap();
         Self {
+            srgb_postprocess: PostProcess::new(
+                &device,
+                Vec::from(POST_PROCESS_SRGB_SHADER_BYTES),
+                custom_uniforms_buffer.is_some(),
+            ),
             window,
             instance,
             surface,
@@ -461,7 +463,8 @@ impl Canvas {
             bind_groups: [primary_bind_group, secondary_bind_group],
             bind_group_layouts: [primary_bind_group_layout, secondary_bind_group_layout],
             textures: asset_textures,
-            postprocess_ops,
+            postprocess_ops: vec![],
+
             stop_watch: Stopwatch::start_new(),
             paused: false,
             last_update: std::time::Instant::now(),

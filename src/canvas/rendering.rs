@@ -91,8 +91,7 @@ impl Canvas {
         // Then render any post-processing effects.
         let mut stage_in = &render_tex_view;
         let mut stage_out = &postprocessing_tex_view;
-        // The last op is always the sRGB conversion, which we don't need when rendering to screen.
-        for i in 0..self.postprocess_ops.len() - 1 {
+        for i in 0..self.postprocess_ops.len() {
             let postprocess_op = &self.postprocess_ops[i];
             // If user has provided custom uniforms, pass them to the post-processing stage as well.
             let mut custom_data = None;
@@ -298,12 +297,11 @@ impl Canvas {
         // Then run all post-processing steps, in order.
         let mut stage_in = &painting;
         let mut stage_out = &post_process_tex;
+        let mut custom_data = None;
+        if let Some(custom_buffer) = self.user_uniforms_buffer.as_ref() {
+            custom_data = Some((custom_buffer, self.user_uniforms_buffer_size.unwrap()));
+        }
         for postprocess_op in &mut self.postprocess_ops {
-            // If user has provided custom uniforms, pass them to the post-processing stage as well.
-            let mut custom_data = None;
-            if let Some(custom_buffer) = self.user_uniforms_buffer.as_ref() {
-                custom_data = Some((custom_buffer, self.user_uniforms_buffer_size.unwrap()));
-            }
             let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
             let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
             postprocess_op.post_process(
@@ -322,8 +320,25 @@ impl Canvas {
             // Swap input and output textures handles
             std::mem::swap(&mut stage_in, &mut stage_out);
         }
-        // Swap one more time to get final output tex (undo last swap).
-        std::mem::swap(&mut stage_in, &mut stage_out);
+
+        // Run one more post-process op, the sRGB conversion.
+        {
+            let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
+            let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
+            self.srgb_postprocess.post_process(
+                &input_view,
+                &output_view,
+                (
+                    &self.uniforms_device_buffer,
+                    std::mem::size_of_val(&self.uniforms),
+                ),
+                custom_data,
+                &self.device,
+                &mut encoder,
+                self.clear_color,
+                true,
+            );
+        }
 
         // Then encode a copy of the texture to the buffer.
         {
@@ -456,19 +471,13 @@ impl Canvas {
         // Then run all post-processing steps, in order.
         let mut stage_in = &painting;
         let mut stage_out = &post_process_tex;
-        // Depending on texture format of movie frames, choose whether to apply the post-processing operation or not.
-        let num_ops = match MOVIE_TEXTURE_FORMAT == wgpu::TextureFormat::Rgba8UnormSrgb {
-            true => self.postprocess_ops.len() - 1,
-            false => self.postprocess_ops.len(),
-        };
-        for i in 0..num_ops {
+        // If user has provided custom uniforms, pass them to the post-processing stage as well.
+        let mut custom_data = None;
+        if let Some(custom_buffer) = self.user_uniforms_buffer.as_ref() {
+            custom_data = Some((custom_buffer, self.user_uniforms_buffer_size.unwrap()));
+        }
+        for i in 0..self.postprocess_ops.len() {
             let postprocess_op = &self.postprocess_ops[i];
-
-            // If user has provided custom uniforms, pass them to the post-processing stage as well.
-            let mut custom_data = None;
-            if let Some(custom_buffer) = self.user_uniforms_buffer.as_ref() {
-                custom_data = Some((custom_buffer, self.user_uniforms_buffer_size.unwrap()));
-            }
             let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
             let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
             postprocess_op.post_process(
@@ -487,8 +496,25 @@ impl Canvas {
             // Swap input and output textures handles
             std::mem::swap(&mut stage_in, &mut stage_out);
         }
-        // Swap one more time to get final output tex (undo last swap).
-        std::mem::swap(&mut stage_in, &mut stage_out);
+
+        // Run one more post-process op, the sRGB conversion.
+        {
+            let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
+            let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
+            self.srgb_postprocess.post_process(
+                &input_view,
+                &output_view,
+                (
+                    &self.uniforms_device_buffer,
+                    std::mem::size_of_val(&self.uniforms),
+                ),
+                custom_data,
+                &self.device,
+                &mut encoder,
+                self.clear_color,
+                true,
+            );
+        }
 
         // Then encode a copy of the texture to the buffer.
         {
