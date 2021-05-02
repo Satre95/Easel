@@ -263,22 +263,22 @@ impl Dashboard {
             let mut create_painting_button_pressed = false;
             let painting_width = &mut self.state.painting_resolution.x;
             let painting_height = &mut self.state.painting_resolution.y;
-            let recording_width = &mut self.state.recording_resolution.x;
-            let recording_height = &mut self.state.recording_resolution.y;
+            let _recording_width = &mut self.state.recording_resolution.x;
+            let _recording_height = &mut self.state.recording_resolution.y;
             let movie_framerate = &mut self.state.movie_framerate;
             let mut painting_filename = ImString::with_capacity(256);
-            let mut recording_filename = ImString::with_capacity(256);
+            let mut _recording_filename = ImString::with_capacity(256);
             let open_painting_externally = &mut self.state.open_painting_externally;
             let pause_while_painting = &mut self.state.pause_while_painting;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
             let user_uniforms = &mut self.state.gui_uniforms;
-            let mut record_button_pressed = false;
-            let recorder = self.recorder.as_ref();
+            let mut _record_button_pressed = false;
+            let _recorder = self.recorder.as_ref();
 
             painting_filename.push_str(&self.state.painting_filename);
-            recording_filename.push_str(&self.state.recording_filename);
+            _recording_filename.push_str(&self.state.recording_filename);
             let mut painting_filename_changed = false;
-            let mut recording_filename_changed = false;
+            let mut _recording_filename_changed = false;
             let painting_in_progress = match &mut self.state.painting_progress_receiver {
                 None => false,
                 Some(rx) => {
@@ -381,29 +381,30 @@ impl Dashboard {
                         }
                     }
 
+                    #[cfg(feature = "movie-recording")]
                     if imgui::CollapsingHeader::new(im_str!("Recording Options"))
                         .default_open(true)
                         .open_on_arrow(true)
                         .open_on_double_click(true)
                         .build(&ui)
                     {
-                        ui.input_int(im_str!("Width##Movie"), recording_width)
+                        ui.input_int(im_str!("Width##Movie"), _recording_width)
                             .build();
-                        ui.input_int(im_str!("Height##Movie"), recording_height)
+                        ui.input_int(im_str!("Height##Movie"), _recording_height)
                             .build();
                         ui.input_int(im_str!("Framerate##Movie"), movie_framerate)
                             .build();
 
                         let file_input =
-                            ui.input_text(im_str!("Filename##Movie"), &mut recording_filename);
-                        recording_filename_changed = file_input.build();
-                        if let Some(rec) = recorder {
+                            ui.input_text(im_str!("Filename##Movie"), &mut _recording_filename);
+                        _recording_filename_changed = file_input.build();
+                        if let Some(rec) = _recorder {
                             if !rec.stop_signal_sent {
-                                record_button_pressed =
+                                _record_button_pressed =
                                     ui.button(im_str!("Stop##Recording"), [gui_width, 25.0]);
                             }
                         } else {
-                            record_button_pressed =
+                            _record_button_pressed =
                                 ui.button(im_str!("Start##Recording"), [gui_width, 25.0]);
                         }
                     }
@@ -461,10 +462,10 @@ impl Dashboard {
                     )))
                     .unwrap();
             }
-            if recording_filename_changed {
-                self.state.recording_filename = String::from(recording_filename.to_str());
+            if _recording_filename_changed {
+                self.state.recording_filename = String::from(_recording_filename.to_str());
             }
-            if record_button_pressed {
+            if _record_button_pressed {
                 if self.recorder.is_none() {
                     self.recorder = Some(Recorder::new(
                         self.state.recording_resolution.x as u32,
