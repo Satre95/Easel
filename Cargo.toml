@@ -1,11 +1,6 @@
 [package]
 authors = ["Siddharth Atre <sid.atre@me.com>"]
-categories = [
-  "game-development",
-  "graphics",
-  "multimedia",
-  "visualization",
-]
+categories = ["game-development", "graphics", "multimedia", "visualization"]
 description = "A shader playground for creating high resolution digital paintings."
 edition = "2018"
 exclude = [".vscode/*", "RenderDoc Capture Settings.cap"]
@@ -59,4 +54,5 @@ rustdoc-args = ["--all-targets", "--release"]
 split-debuginfo = "unpacked"
 
 [features]
+default = ["movie-recording"]
 "movie-recording" = []

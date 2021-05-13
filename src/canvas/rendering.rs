@@ -1,6 +1,9 @@
-use crate::recording::MOVIE_TEXTURE_FORMAT;
 use crate::texture::default_color_sampler;
 use crate::vector::UIntVector2;
+use crate::{
+    postprocessing,
+    recording::{self, MOVIE_TEXTURE_FORMAT},
+};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
@@ -109,7 +112,7 @@ impl Canvas {
                 &self.device,
                 &mut encoder,
                 self.clear_color,
-                false,
+                postprocessing::PipelineType::Render,
             );
             // Swap input and output textures handles
             std::mem::swap(&mut stage_in, &mut stage_out);
@@ -315,7 +318,7 @@ impl Canvas {
                 &self.device,
                 &mut encoder,
                 self.clear_color,
-                true,
+                postprocessing::PipelineType::Painting,
             );
             // Swap input and output textures handles
             std::mem::swap(&mut stage_in, &mut stage_out);
@@ -336,7 +339,7 @@ impl Canvas {
                 &self.device,
                 &mut encoder,
                 self.clear_color,
-                true,
+                postprocessing::PipelineType::Painting,
             );
         }
 
@@ -491,7 +494,7 @@ impl Canvas {
                 &self.device,
                 &mut encoder,
                 self.clear_color,
-                true,
+                postprocessing::PipelineType::Movie,
             );
             // Swap input and output textures handles
             std::mem::swap(&mut stage_in, &mut stage_out);
@@ -512,7 +515,7 @@ impl Canvas {
                 &self.device,
                 &mut encoder,
                 self.clear_color,
-                true,
+                postprocessing::PipelineType::Movie,
             );
         }
 
