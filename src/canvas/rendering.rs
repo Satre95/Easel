@@ -1,9 +1,6 @@
 use crate::texture::default_color_sampler;
 use crate::vector::UIntVector2;
-use crate::{
-    postprocessing,
-    recording::{self, MOVIE_TEXTURE_FORMAT},
-};
+use crate::{postprocessing, recording::MOVIE_TEXTURE_FORMAT};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
