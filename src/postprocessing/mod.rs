@@ -287,8 +287,8 @@ impl PostProcess {
         }
 
         match pipeline_type {
-            PipelineType::Render => render_pass.set_pipeline(&self.painting_pipeline),
-            PipelineType::Painting => render_pass.set_pipeline(&self.render_pipeline),
+            PipelineType::Render => render_pass.set_pipeline(&self.render_pipeline),
+            PipelineType::Painting => render_pass.set_pipeline(&self.painting_pipeline),
             PipelineType::Movie => render_pass.set_pipeline(&self.movie_pipeline),
         }
         render_pass.draw(0..3, 0..1);

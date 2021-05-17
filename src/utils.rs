@@ -257,7 +257,7 @@ pub fn create_pipelines(
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),
-        primitive: primitive_state,
+        primitive: primitive_state.clone(),
         depth_stencil: None,
         multisample: multisample_state.clone(),
     });
@@ -276,13 +276,7 @@ pub fn create_pipelines(
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: wgpu::CullMode::None,
-            polygon_mode: wgpu::PolygonMode::Fill,
-        },
+        primitive: primitive_state.clone(),
         depth_stencil: None,
         multisample: multisample_state.clone(),
     });
@@ -301,13 +295,7 @@ pub fn create_pipelines(
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw,
-            cull_mode: wgpu::CullMode::None,
-            polygon_mode: wgpu::PolygonMode::Fill,
-        },
+        primitive: primitive_state,
         depth_stencil: None,
         multisample: multisample_state.clone(),
     });

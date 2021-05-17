@@ -30,7 +30,7 @@ impl Recorder {
         filename: String,
     ) -> Recorder {
         let pix_fmt = match texture_format{
-            TextureFormat::Rgba8UnormSrgb => "rgb0",
+            TextureFormat::Rgba8UnormSrgb => "rgba",
             _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba8UnormSrgb")
         };
         let resolution_string = format!("{}x{}", width.to_string(), height.to_string());
@@ -43,10 +43,8 @@ impl Recorder {
                 "-hide_banner",
                 "-y",
                 "-f",
-                "image2pipe",
-                "-vcodec",
                 "rawvideo",
-                "-r",
+                "-framerate",
                 &framerate_str,
                 "-video_size",
                 &resolution_string,
@@ -75,15 +73,14 @@ impl Recorder {
                 ]);
             } else {
                 args.extend_from_slice(&[
-                    "-i",
-                    "-",
-                    "-c:v",
-                    "h264_videotoolbox",
+                    "-i", "-",
+                    // "-c:v",
+                    // "h264_videotoolbox",
                     // "libx264",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-r",
-                    &framerate_str,
+                    // "-pix_fmt",
+                    // "yuv420p",
+                    // "-r",
+                    // &framerate_str,
                     // "-profile",
                     // "high444p",
                     // "-crf",
@@ -117,6 +114,7 @@ impl Recorder {
                         pipe_in.write_all(&pixel_data).unwrap();
                     }
                 }
+                pixel_data.clear();
             }
 
             ffmpeg_process.stdin.as_mut().unwrap().flush().unwrap();

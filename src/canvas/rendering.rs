@@ -497,25 +497,6 @@ impl Canvas {
             std::mem::swap(&mut stage_in, &mut stage_out);
         }
 
-        // Run one more post-process op, the sRGB conversion.
-        {
-            let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
-            let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
-            self.srgb_postprocess.post_process(
-                &input_view,
-                &output_view,
-                (
-                    &self.uniforms_device_buffer,
-                    std::mem::size_of_val(&self.uniforms),
-                ),
-                custom_data,
-                &self.device,
-                &mut encoder,
-                self.clear_color,
-                postprocessing::PipelineType::Movie,
-            );
-        }
-
         // Then encode a copy of the texture to the buffer.
         {
             let tex_copy_view = wgpu::TextureCopyView {
