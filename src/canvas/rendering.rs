@@ -1,6 +1,7 @@
 use crate::texture::default_color_sampler;
 use crate::vector::UIntVector2;
 use crate::{postprocessing, recording::MOVIE_TEXTURE_FORMAT};
+use log::info;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
@@ -404,14 +405,14 @@ impl Canvas {
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT
                 | wgpu::TextureUsage::COPY_SRC
                 | wgpu::TextureUsage::SAMPLED,
-            label: Some("Painting"),
+            label: Some("Movie Frame"),
             dimension: wgpu::TextureDimension::D2,
             mip_level_count: 1,
             sample_count: 1,
         };
 
         // Texture to render the painting too.
-        let painting = self.device.create_texture(&painting_tex_desc);
+        let movie_frame = self.device.create_texture(&painting_tex_desc);
         // Create the output texture for post-processing.
         let post_process_tex = self.device.create_texture(&painting_tex_desc);
 
@@ -419,8 +420,7 @@ impl Canvas {
         let buffer_desc = wgpu::BufferDescriptor {
             label: Some("Painting Staging Buffer"),
             usage: wgpu::BufferUsage::COPY_DST | wgpu::BufferUsage::MAP_READ,
-            size: ((resolution.x * resolution.y) as usize * std::mem::size_of::<half::f16>() * 4)
-                as u64,
+            size: ((resolution.x * resolution.y) as usize * std::mem::size_of::<u8>() * 4) as u64,
             mapped_at_creation: false,
         };
         let buffer = self.device.create_buffer(&buffer_desc);
@@ -431,14 +431,14 @@ impl Canvas {
                 label: Some("Movie Frame Encoder"),
             });
 
-        let painting_start_time = std::time::Instant::now();
+        let frame_start_time = std::time::Instant::now();
         // First run the pipeline.
         {
-            let painting_view = painting.create_view(&wgpu::TextureViewDescriptor::default());
+            let movie_frame_view = movie_frame.create_view(&wgpu::TextureViewDescriptor::default());
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &painting_view,
+                    attachment: &movie_frame_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(self.clear_color),
@@ -469,7 +469,7 @@ impl Canvas {
         }
 
         // Then run all post-processing steps, in order.
-        let mut stage_in = &painting;
+        let mut stage_in = &movie_frame;
         let mut stage_out = &post_process_tex;
         // If user has provided custom uniforms, pass them to the post-processing stage as well.
         let mut custom_data = None;
@@ -477,6 +477,7 @@ impl Canvas {
             custom_data = Some((custom_buffer, self.user_uniforms_buffer_size.unwrap()));
         }
         for i in 0..self.postprocess_ops.len() {
+            info!("Postprocess op {}", i);
             let postprocess_op = &self.postprocess_ops[i];
             let input_view = stage_in.create_view(&wgpu::TextureViewDescriptor::default());
             let output_view = stage_out.create_view(&wgpu::TextureViewDescriptor::default());
@@ -496,6 +497,9 @@ impl Canvas {
             // Swap input and output textures handles
             std::mem::swap(&mut stage_in, &mut stage_out);
         }
+        if self.postprocess_ops.len() == 0 {
+            std::mem::swap(&mut stage_in, &mut stage_out);
+        }
 
         // Then encode a copy of the texture to the buffer.
         {
@@ -507,8 +511,7 @@ impl Canvas {
             let buf_copy_view = wgpu::BufferCopyView {
                 buffer: &buffer,
                 layout: wgpu::TextureDataLayout {
-                    bytes_per_row: ((resolution.x * 4) as usize * std::mem::size_of::<half::f16>())
-                        as u32,
+                    bytes_per_row: ((resolution.x * 4) as usize * std::mem::size_of::<u8>()) as u32,
                     offset: 0,
                     rows_per_image: resolution.y as u32,
                 },
@@ -531,7 +534,7 @@ impl Canvas {
             .send(CanvasMessage::MovieFrameStarted(
                 buffer,
                 resolution,
-                painting_start_time,
+                frame_start_time,
             ))
             .unwrap();
     }

@@ -2,8 +2,8 @@ use crate::vector::UIntVector2;
 use byteorder::{NativeEndian, WriteBytesExt};
 use futures::executor::block_on;
 use half::prelude::*;
-use image::tiff::TiffEncoder;
 use image::ImageEncoder;
+use image::{codecs::png::PngEncoder, tiff::TiffEncoder};
 use log::info;
 use std::fs::File;
 use std::io::BufWriter;
@@ -84,7 +84,7 @@ pub fn load_shader(shader_file: &str) -> Result<Vec<u8>, shaderc::Error> {
     Result::Ok(fs_spv_data)
 }
 
-pub async fn transcode_painting_data_for_movie(
+pub async fn transcode_frame_data_for_movie(
     painting: wgpu::Buffer,
     resolution: UIntVector2,
     pixel_data: &mut Vec<u8>,
@@ -120,10 +120,9 @@ pub async fn transcode_painting_data(
         // This puts us the beginning of the pixel
         let pixel_idx = (i * 8) as usize;
 
-        let range = 0..4;
         let mut bytes_workarea = Vec::with_capacity(2);
         // Load each component
-        for component_idx in range {
+        for component_idx in 0..4 {
             // Load the bytes of each component.
             let component_data = [
                 (*buf_view)[pixel_idx + (2 * component_idx) + 0],
@@ -141,6 +140,23 @@ pub async fn transcode_painting_data(
             pixel_data.extend_from_slice(&bytes_workarea);
         }
     }
+}
+
+#[allow(dead_code)]
+pub fn encode_image_buffer_to_png(
+    pixel_data: &Vec<u8>,
+    resolution: UIntVector2,
+    output_file: File,
+) {
+    let encoder = PngEncoder::new(output_file);
+    encoder
+        .encode(
+            pixel_data,
+            resolution.x,
+            resolution.y,
+            image::ColorType::Rgba8,
+        )
+        .unwrap();
 }
 
 /// An enum used by the [AsyncTiffWriter] class to signify a write operation has finished.

@@ -73,14 +73,15 @@ impl Recorder {
                 ]);
             } else {
                 args.extend_from_slice(&[
-                    "-i", "-",
-                    // "-c:v",
-                    // "h264_videotoolbox",
+                    "-i",
+                    "-",
+                    "-c:v",
+                    "h264_videotoolbox",
                     // "libx264",
-                    // "-pix_fmt",
-                    // "yuv420p",
-                    // "-r",
-                    // &framerate_str,
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-r",
+                    &framerate_str,
                     // "-profile",
                     // "high444p",
                     // "-crf",
@@ -104,17 +105,17 @@ impl Recorder {
                         break;
                     }
                     RecorderThreadSignal::Frame(buffer, resolution) => {
-                        frame_count += 1;
                         let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
-                        block_on(utils::transcode_painting_data_for_movie(
+                        block_on(utils::transcode_frame_data_for_movie(
                             buffer,
                             resolution,
                             &mut pixel_data,
                         ));
                         pipe_in.write_all(&pixel_data).unwrap();
+                        frame_count += 1;
+                        pixel_data.clear();
                     }
                 }
-                pixel_data.clear();
             }
 
             ffmpeg_process.stdin.as_mut().unwrap().flush().unwrap();
