@@ -259,7 +259,7 @@ impl Dashboard {
             let mut pause_button_pressed = false;
             let titlebars_state = self.state.show_titlebar;
             let mut titlebar_button_pressed = false;
-            let gui_width = self.size.width as f32 / self.hidpi_factor;
+            let gui_width = self.size.width as f32 / self.hidpi_factor - 10.0;
             let mut create_painting_button_pressed = false;
             let painting_width = &mut self.state.painting_resolution.x;
             let painting_height = &mut self.state.painting_resolution.y;
@@ -369,10 +369,7 @@ impl Dashboard {
                             ui.input_text(im_str!("Filename##Painting"), &mut painting_filename);
                         painting_filename_changed = file_input.build();
                         if cfg!(target_os = "macos") {
-                            ui.checkbox(
-                                im_str!("Open Painting in External App"),
-                                open_painting_externally,
-                            );
+                            ui.checkbox(im_str!("Open in External App"), open_painting_externally);
                         }
                         ui.checkbox(im_str!("Pause While Painting"), pause_while_painting);
                         if !painting_in_progress {

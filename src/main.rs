@@ -256,7 +256,7 @@ fn main() {
         let dashboard_window_builder = WindowBuilder::new().with_resizable(true);
         let dashboard_window = dashboard_window_builder.build(&event_loop).unwrap();
         dashboard_window.set_title("Dashboard");
-        dashboard_window.set_inner_size(PhysicalSize::new(500, 900));
+        dashboard_window.set_inner_size(PhysicalSize::new(500, 1250));
 
         // Setup Dashboard state
         let mut dashboard = block_on(Dashboard::new(dashboard_window, dashboard_tx, dashboard_rx));
