@@ -245,7 +245,7 @@ impl Dashboard {
                 let delta = (update_time - *last_frame_time).as_secs_f64();
                 frame_needed = frame_needed && delta >= seconds_per_frame;
             }
-            if frame_needed {
+            if frame_needed && recorder.ready {
                 self.transmitter
                     .send(DashboardMessage::MovieRenderRequested(UIntVector2::new(
                         self.state.recording_resolution.x as u32,

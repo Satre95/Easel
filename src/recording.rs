@@ -4,20 +4,31 @@ use log::info;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::thread::JoinHandle;
+use std::{future::Future, thread::Thread};
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 use wgpu::TextureFormat;
 
 pub static MOVIE_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
-enum RecorderThreadSignal {
+enum RecorderToThreadSignal {
     Stop,
     Frame(wgpu::Buffer, UIntVector2),
 }
 
+enum ThreadToRecorderSignal {
+    Ready,
+    Finished,
+}
+
 pub struct Recorder {
     join_handle: JoinHandle<()>,
-    sender: std::sync::mpsc::SyncSender<RecorderThreadSignal>,
-    receiver: std::sync::mpsc::Receiver<bool>,
+    sender: std::sync::mpsc::SyncSender<RecorderToThreadSignal>,
+    receiver: std::sync::mpsc::Receiver<ThreadToRecorderSignal>,
     pub done: bool,
+    pub ready: bool,
     stop_signal_received: bool,
 }
 
@@ -88,16 +99,19 @@ impl Recorder {
                 .spawn()
                 .unwrap();
 
+            // Notify Recorder struct that we are ready to start receiving frames.
+            thread_sender.send(ThreadToRecorderSignal::Ready).unwrap();
+
             let mut pixel_data = Vec::<u8>::new();
             let mut frame_count: usize = 0;
             loop {
                 let msg = thread_receiver.recv().unwrap();
                 match msg {
-                    RecorderThreadSignal::Stop => {
+                    RecorderToThreadSignal::Stop => {
                         info!("Stop signal received.");
                         break;
                     }
-                    RecorderThreadSignal::Frame(buffer, resolution) => {
+                    RecorderToThreadSignal::Frame(buffer, resolution) => {
                         let pipe_in = ffmpeg_process.stdin.as_mut().unwrap();
                         block_on(utils::transcode_frame_data_for_movie(
                             buffer,
@@ -120,7 +134,9 @@ impl Recorder {
                 "FFMpeg processed {} frames and finished with status: {}",
                 frame_count, output.status
             );
-            thread_sender.send(true).unwrap();
+            thread_sender
+                .send(ThreadToRecorderSignal::Finished)
+                .unwrap();
             // std::io::stdout().write_all(&output.stdout).unwrap();
             // std::io::stderr().write_all(&output.stderr).unwrap();
         });
@@ -130,6 +146,7 @@ impl Recorder {
             sender: our_sender,
             receiver: our_receiver,
             done: false,
+            ready: false,
             stop_signal_received: false,
         }
     }
@@ -138,7 +155,10 @@ impl Recorder {
     pub fn poll(&mut self) -> bool {
         let msg_result = self.receiver.try_recv();
         match msg_result {
-            Ok(done) => self.done = done,
+            Ok(signal) => match signal {
+                ThreadToRecorderSignal::Finished => self.done = true,
+                ThreadToRecorderSignal::Ready => self.ready = true,
+            },
             Err(_) => {}
         }
         self.done
@@ -151,7 +171,7 @@ impl Recorder {
         _timestamp: std::time::Instant,
     ) {
         self.sender
-            .send(RecorderThreadSignal::Frame(buffer, resolution))
+            .send(RecorderToThreadSignal::Frame(buffer, resolution))
             .unwrap();
     }
 
@@ -160,7 +180,7 @@ impl Recorder {
             panic!("Attempting to request stop on recorder that has already stopped!");
         }
         info!("Sending stop signal to FFMpeg.");
-        self.sender.send(RecorderThreadSignal::Stop).unwrap();
+        self.sender.send(RecorderToThreadSignal::Stop).unwrap();
         self.stop_signal_received = true;
     }
 
@@ -168,3 +188,9 @@ impl Recorder {
         self.join_handle.join().unwrap();
     }
 }
+
+// impl Future for Recorder {
+//     type Output = Recorder;
+
+//     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {}
+// }
