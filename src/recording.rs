@@ -18,7 +18,7 @@ pub struct Recorder {
     sender: std::sync::mpsc::SyncSender<RecorderThreadSignal>,
     receiver: std::sync::mpsc::Receiver<bool>,
     pub done: bool,
-    pub stop_signal_sent: bool,
+    stop_signal_received: bool,
 }
 
 impl Recorder {
@@ -60,15 +60,11 @@ impl Recorder {
                     "-c:v",
                     "hevc_nvenc",
                     "-preset",
-                    "3",
+                    "2", // medium
                     "-pix_fmt",
                     "yuv420p",
                     "-r",
                     &framerate_str,
-                    // "-profile",
-                    // "high444p",
-                    // "-crf",
-                    // "20",
                     &filename,
                 ]);
             } else {
@@ -134,10 +130,11 @@ impl Recorder {
             sender: our_sender,
             receiver: our_receiver,
             done: false,
-            stop_signal_sent: false,
+            stop_signal_received: false,
         }
     }
 
+    /// Whether this recorder has finished processing all frames.
     pub fn poll(&mut self) -> bool {
         let msg_result = self.receiver.try_recv();
         match msg_result {
@@ -159,12 +156,12 @@ impl Recorder {
     }
 
     pub fn stop(&mut self) {
-        if self.stop_signal_sent {
+        if self.stop_signal_received {
             panic!("Attempting to request stop on recorder that has already stopped!");
         }
         info!("Sending stop signal to FFMpeg.");
         self.sender.send(RecorderThreadSignal::Stop).unwrap();
-        self.stop_signal_sent = true;
+        self.stop_signal_received = true;
     }
 
     pub fn finish(self) {

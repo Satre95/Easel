@@ -52,7 +52,3 @@ rustdoc-args = ["--all-targets", "--release"]
 
 [profile.dev]
 split-debuginfo = "unpacked"
-
-[features]
-default = ["movie-recording"]
-"movie-recording" = []

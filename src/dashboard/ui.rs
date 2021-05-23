@@ -103,13 +103,16 @@ impl Dashboard {
             let pause_while_painting = &mut self.state.pause_while_painting;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
             let user_uniforms = &mut self.state.gui_uniforms;
-            let mut _record_button_pressed = false;
-            let _recorder = self.recorder.as_ref();
+            let mut start_record_button_pressed = false;
+            let mut stop_record_button_pressed = false;
+            let recorder = self.recorder.as_ref();
+            let recording_started = &mut self.state.recording_in_progress;
+            let mut init_recorder_button_pressed = false;
 
             painting_filename.push_str(&self.state.painting_filename);
             _recording_filename.push_str(&self.state.recording_filename);
             let mut painting_filename_changed = false;
-            let mut _recording_filename_changed = false;
+            let mut recording_filename_changed = false;
             let painting_in_progress = match &mut self.state.painting_progress_receiver {
                 None => false,
                 Some(rx) => {
@@ -209,7 +212,6 @@ impl Dashboard {
                         }
                     }
 
-                    #[cfg(feature = "movie-recording")]
                     if imgui::CollapsingHeader::new(im_str!("Recording Options"))
                         .default_open(true)
                         .open_on_arrow(true)
@@ -225,15 +227,18 @@ impl Dashboard {
 
                         let file_input =
                             ui.input_text(im_str!("Filename##Movie"), &mut _recording_filename);
-                        _recording_filename_changed = file_input.build();
-                        if let Some(rec) = _recorder {
-                            if !rec.stop_signal_sent {
-                                _record_button_pressed =
+                        recording_filename_changed = file_input.build();
+                        if recorder.is_some() {
+                            if *recording_started {
+                                stop_record_button_pressed =
                                     ui.button(im_str!("Stop##Recording"), [gui_width, 25.0]);
+                            } else {
+                                start_record_button_pressed =
+                                    ui.button(im_str!("Start##Recording"), [gui_width, 25.0]);
                             }
                         } else {
-                            _record_button_pressed =
-                                ui.button(im_str!("Start##Recording"), [gui_width, 25.0]);
+                            init_recorder_button_pressed =
+                                ui.button(im_str!("Initialize##Recording"), [gui_width, 25.0]);
                         }
                     }
                     //---------------------------------
@@ -290,22 +295,23 @@ impl Dashboard {
                     )))
                     .unwrap();
             }
-            if _recording_filename_changed {
+            if recording_filename_changed {
                 self.state.recording_filename = String::from(_recording_filename.to_str());
             }
-            if _record_button_pressed {
-                if self.recorder.is_none() {
-                    self.recorder = Some(Recorder::new(
-                        self.state.recording_resolution.x as u32,
-                        self.state.recording_resolution.y as u32,
-                        MOVIE_TEXTURE_FORMAT,
-                        *movie_framerate as u32,
-                        format!("{}.mp4", self.state.recording_filename),
-                    ));
-                } else {
-                    let recorder = self.recorder.as_mut().unwrap();
-                    recorder.stop();
-                }
+            if init_recorder_button_pressed && self.recorder.is_none() {
+                self.recorder = Some(Recorder::new(
+                    self.state.recording_resolution.x as u32,
+                    self.state.recording_resolution.y as u32,
+                    MOVIE_TEXTURE_FORMAT,
+                    *movie_framerate as u32,
+                    format!("{}.mp4", self.state.recording_filename),
+                ));
+            }
+            if start_record_button_pressed {
+                self.state.recording_in_progress = true;
+            } else if stop_record_button_pressed {
+                self.recorder.as_mut().unwrap().stop();
+                self.state.recording_in_progress = false;
             }
         }
 

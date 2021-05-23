@@ -239,7 +239,7 @@ impl Dashboard {
                 panic!("Invalid framerate {} provided!", self.state.movie_framerate);
             }
             // If we have not stopped, keep requesting frames on the selected FPS interval
-            let mut frame_needed = !recorder.stop_signal_sent;
+            let mut frame_needed = self.state.recording_in_progress;
             if let Some(last_frame_time) = self.last_movie_frame_time.as_mut() {
                 let seconds_per_frame = 1.0 / (self.state.movie_framerate as f64);
                 let delta = (update_time - *last_frame_time).as_secs_f64();

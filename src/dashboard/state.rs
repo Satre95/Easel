@@ -18,6 +18,7 @@ pub struct DashboardState {
     pub recording_resolution: IntVector2,
     pub painting_filename: String,
     pub recording_filename: String,
+    pub recording_in_progress: bool,
     /// Unit: seconds
     pub movie_framerate: i32,
     /// Only available on macOS.
@@ -40,9 +41,10 @@ impl DashboardState {
             paused: false,
             show_titlebar: true,
             painting_resolution: IntVector2::zero(),
-            recording_resolution: IntVector2::new(512, 512),
+            recording_resolution: IntVector2::new(1024, 1024),
             painting_filename: String::from("Painting"),
             recording_filename: String::from("Muybridge"),
+            recording_in_progress: false,
             movie_framerate: 60,
             open_painting_externally: true,
             pause_while_painting: true,
