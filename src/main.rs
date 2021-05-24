@@ -103,6 +103,7 @@
 
 mod canvas;
 mod dashboard;
+mod drawable;
 mod postprocessing;
 mod push_constants;
 mod recording;
@@ -121,13 +122,15 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::canvas::CanvasMessage;
-use crate::dashboard::{Dashboard, DashboardMessage};
+use crate::{
+    canvas::CanvasMessage,
+    dashboard::{Dashboard, DashboardMessage},
+    drawable::Drawable,
+};
 use canvas::Canvas;
-use std::fs;
-use std::path::Path;
-use std::sync::mpsc::sync_channel;
 use std::{cmp::max, time::Instant};
+use std::{collections::HashMap, fs, path::Path};
+use std::{sync::mpsc::sync_channel, thread};
 use winit::dpi::PhysicalSize;
 
 static UPDATE_INTERVAL_MS: u128 = 16;
@@ -192,6 +195,8 @@ fn main() {
             }
         }
 
+        let mut drawables = HashMap::new();
+
         // Setup the render window.
         let event_loop = EventLoop::new();
         let render_window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -215,6 +220,7 @@ fn main() {
         let (dashboard_tx, state_rx) = sync_channel::<DashboardMessage>(1024);
         let (state_tx, dashboard_rx) = sync_channel::<CanvasMessage>(1024);
 
+        let mut window_ids = vec![render_window.id()];
         // Setup render state.
         let mut canvas = block_on(Canvas::new(
             render_window,
@@ -257,7 +263,7 @@ fn main() {
         let dashboard_window = dashboard_window_builder.build(&event_loop).unwrap();
         dashboard_window.set_title("Dashboard");
         dashboard_window.set_inner_size(PhysicalSize::new(500, 1250));
-
+        window_ids.push(dashboard_window.id());
         // Setup Dashboard state
         let mut dashboard = block_on(Dashboard::new(dashboard_window, dashboard_tx, dashboard_rx));
 

@@ -1,53 +1,14 @@
 use super::{Dashboard, DashboardMessage};
-use crate::{recording::Recorder, recording::MOVIE_TEXTURE_FORMAT, uniforms, vector::UIntVector2};
+use crate::{
+    drawable::Drawable, recording::Recorder, recording::MOVIE_TEXTURE_FORMAT, uniforms,
+    vector::UIntVector2,
+};
 use imgui::Condition;
 use imgui::{im_str, ImString, StyleColor};
 use log::{info, warn};
 use winit::event::*;
 
 impl Dashboard {
-    /// Receives events from the winit event queue and responds appropriately.
-    pub fn input(&mut self, event: &winit::event::Event<()>) {
-        match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if *window_id == self.window.id() => match event {
-                WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                    self.hidpi_factor = *scale_factor as f32;
-                }
-                WindowEvent::Resized(physical_size) => {
-                    self.size = *physical_size;
-                    self.sc_desc = wgpu::SwapChainDescriptor {
-                        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                        width: physical_size.width as u32,
-                        height: physical_size.height as u32,
-                        present_mode: wgpu::PresentMode::Mailbox,
-                    };
-                    self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-                }
-                WindowEvent::KeyboardInput { input, .. } => match input {
-                    KeyboardInput {
-                        state: ElementState::Pressed,
-                        virtual_keycode: Some(VirtualKeyCode::Space),
-                        ..
-                    } => {
-                        self.state.paused = !self.state.paused;
-                        self.transmitter
-                            .send(DashboardMessage::PausePlayChanged)
-                            .unwrap();
-                    }
-                    _ => (),
-                },
-                _ => {}
-            },
-            _ => (),
-        }
-        self.imgui_platform
-            .handle_event(self.imgui_context.io_mut(), &self.window, event);
-    }
-
     /// Renders the UI and responds to UI events.
     pub fn render_dashboard(&mut self) {
         let now = std::time::Instant::now();
@@ -367,5 +328,53 @@ impl Dashboard {
         }
 
         self.queue.submit(Some(encoder.finish()));
+    }
+}
+
+impl Drawable for Dashboard {
+    /// Receives events from the winit event queue and responds appropriately.
+    fn input(&mut self, event: &winit::event::Event<()>) {
+        match event {
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } if *window_id == self.window.id() => match event {
+                WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                    self.hidpi_factor = *scale_factor as f32;
+                }
+                WindowEvent::Resized(physical_size) => {
+                    self.size = *physical_size;
+                    self.sc_desc = wgpu::SwapChainDescriptor {
+                        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+                        format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                        width: physical_size.width as u32,
+                        height: physical_size.height as u32,
+                        present_mode: wgpu::PresentMode::Mailbox,
+                    };
+                    self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+                }
+                WindowEvent::KeyboardInput { input, .. } => match input {
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::Space),
+                        ..
+                    } => {
+                        self.state.paused = !self.state.paused;
+                        self.transmitter
+                            .send(DashboardMessage::PausePlayChanged)
+                            .unwrap();
+                    }
+                    _ => (),
+                },
+                _ => {}
+            },
+            _ => (),
+        }
+        self.imgui_platform
+            .handle_event(self.imgui_context.io_mut(), &self.window, event);
+    }
+
+    fn window_id(&self) -> winit::window::WindowId {
+        self.window.id()
     }
 }

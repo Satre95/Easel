@@ -1,3 +1,4 @@
+use crate::drawable::Drawable;
 use crate::push_constants::PushConstant;
 use crate::texture::{default_color_sampler, AssetTexture, Texture};
 use crate::uniforms::{Uniforms, UserUniform};
@@ -495,86 +496,6 @@ impl Canvas {
             .unwrap();
     }
 
-    /// Expected to be called from main thread to handle IO events.
-    /// This fn assumes the incoming events are from the Canvas' window.
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput { input, .. } => match input {
-                KeyboardInput {
-                    state: ElementState::Pressed,
-                    virtual_keycode: Some(VirtualKeyCode::Space),
-                    ..
-                } => {
-                    self.paused = !self.paused;
-                    if self.paused {
-                        self.stop_watch.stop();
-                    } else {
-                        self.stop_watch.start();
-                    }
-                    self.transmitter
-                        .send(CanvasMessage::PausePlayChanged)
-                        .unwrap();
-                    true
-                }
-                KeyboardInput {
-                    state: ElementState::Pressed,
-                    virtual_keycode: Some(VirtualKeyCode::P),
-                    ..
-                } => {
-                    self.create_painting(self.painting_resolution.clone());
-                    true
-                }
-                KeyboardInput {
-                    state: ElementState::Pressed,
-                    virtual_keycode: Some(VirtualKeyCode::Escape),
-                    ..
-                } => false,
-                _ => true,
-            },
-            WindowEvent::CursorMoved { position, .. } => {
-                self.uniforms.mouse_position.z = self.uniforms.mouse_position.x;
-                self.uniforms.mouse_position.w = self.uniforms.mouse_position.y;
-                self.uniforms.mouse_position.x = position.x as f32;
-                self.uniforms.mouse_position.y = position.y as f32;
-                // Send message.
-                self.transmitter
-                    .send(CanvasMessage::MouseMoved(Vector2::new(
-                        self.uniforms.mouse_position.x,
-                        self.uniforms.mouse_position.y,
-                    )))
-                    .unwrap();
-                true
-            }
-            WindowEvent::MouseInput { button, state, .. } => {
-                match button {
-                    MouseButton::Left => {
-                        self.uniforms.mouse_button.x = (*state == ElementState::Pressed) as i32
-                    }
-                    MouseButton::Right => {
-                        self.uniforms.mouse_button.y = (*state == ElementState::Pressed) as i32
-                    }
-                    MouseButton::Middle => {
-                        self.uniforms.mouse_button.z = (*state == ElementState::Pressed) as i32
-                    }
-                    MouseButton::Other(_) => {
-                        self.uniforms.mouse_button.w = (*state == ElementState::Pressed) as i32
-                    }
-                }
-                true
-            }
-            WindowEvent::Resized(physical_size) => {
-                self.resize(*physical_size);
-                true
-            }
-            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                // new_inner_size is &mut so w have to dereference it twice
-                self.resize(**new_inner_size);
-                true
-            }
-            _ => false,
-        }
-    }
-
     /// Used to parse messages received from Dashboard and act accordingly.
     fn dashboard_signal_received(&mut self, message: DashboardMessage) {
         match message {
@@ -720,5 +641,89 @@ impl Canvas {
         self.shader_file_watcher_receiver = None;
         self.json_file_watcher = None;
         self.json_file_watcher_receiver = None;
+    }
+}
+
+impl Drawable for Canvas {
+    /// Expected to be called from main thread to handle IO events.
+    /// This fn assumes the incoming events are from the Canvas' window.
+    fn input(&mut self, incoming_event: &Event<()>) {
+        match incoming_event {
+            Event::WindowEvent {
+                ref event,
+                window_id,
+            } => match event {
+                WindowEvent::KeyboardInput { input, .. } => match input {
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::Space),
+                        ..
+                    } => {
+                        self.paused = !self.paused;
+                        if self.paused {
+                            self.stop_watch.stop();
+                        } else {
+                            self.stop_watch.start();
+                        }
+                        self.transmitter
+                            .send(CanvasMessage::PausePlayChanged)
+                            .unwrap();
+                    }
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::P),
+                        ..
+                    } => {
+                        self.create_painting(self.painting_resolution.clone());
+                    }
+                    KeyboardInput {
+                        state: ElementState::Pressed,
+                        virtual_keycode: Some(VirtualKeyCode::Escape),
+                        ..
+                    } => {}
+                    _ => {}
+                },
+                WindowEvent::CursorMoved { position, .. } => {
+                    self.uniforms.mouse_position.z = self.uniforms.mouse_position.x;
+                    self.uniforms.mouse_position.w = self.uniforms.mouse_position.y;
+                    self.uniforms.mouse_position.x = position.x as f32;
+                    self.uniforms.mouse_position.y = position.y as f32;
+                    // Send message.
+                    self.transmitter
+                        .send(CanvasMessage::MouseMoved(Vector2::new(
+                            self.uniforms.mouse_position.x,
+                            self.uniforms.mouse_position.y,
+                        )))
+                        .unwrap();
+                }
+                WindowEvent::MouseInput { button, state, .. } => match button {
+                    MouseButton::Left => {
+                        self.uniforms.mouse_button.x = (*state == ElementState::Pressed) as i32
+                    }
+                    MouseButton::Right => {
+                        self.uniforms.mouse_button.y = (*state == ElementState::Pressed) as i32
+                    }
+                    MouseButton::Middle => {
+                        self.uniforms.mouse_button.z = (*state == ElementState::Pressed) as i32
+                    }
+                    MouseButton::Other(_) => {
+                        self.uniforms.mouse_button.w = (*state == ElementState::Pressed) as i32
+                    }
+                },
+                WindowEvent::Resized(physical_size) => {
+                    self.resize(*physical_size);
+                }
+                WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                    // new_inner_size is &mut so w have to dereference it twice
+                    self.resize(**new_inner_size);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    fn window_id(&self) -> winit::window::WindowId {
+        self.window.id()
     }
 }

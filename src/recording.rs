@@ -4,11 +4,6 @@ use log::info;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::thread::JoinHandle;
-use std::{future::Future, thread::Thread};
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
 use wgpu::TextureFormat;
 
 pub static MOVIE_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
