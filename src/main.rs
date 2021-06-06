@@ -103,7 +103,7 @@
 
 mod canvas;
 mod dashboard;
-mod drawable;
+// mod drawable;
 mod postprocessing;
 mod push_constants;
 mod recording;
@@ -125,7 +125,6 @@ use winit::{
 use crate::{
     canvas::CanvasMessage,
     dashboard::{Dashboard, DashboardMessage},
-    drawable::Drawable,
 };
 use canvas::Canvas;
 use std::{cmp::max, time::Instant};
@@ -134,6 +133,12 @@ use std::{sync::mpsc::sync_channel, thread};
 use winit::dpi::PhysicalSize;
 
 static UPDATE_INTERVAL_MS: u128 = 16;
+
+enum EventThreadMessage {
+    Tick,
+    SystemEvent(winit::event::Event<'static, ()>),
+    // Exit,
+}
 
 fn main() {
     env_logger::init();
@@ -195,8 +200,6 @@ fn main() {
             }
         }
 
-        let mut drawables = HashMap::new();
-
         // Setup the render window.
         let event_loop = EventLoop::new();
         let render_window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -220,9 +223,10 @@ fn main() {
         let (dashboard_tx, state_rx) = sync_channel::<DashboardMessage>(1024);
         let (state_tx, dashboard_rx) = sync_channel::<CanvasMessage>(1024);
 
+        let mut drawables = HashMap::new();
         let mut window_ids = vec![render_window.id()];
         // Setup render state.
-        let mut canvas = block_on(Canvas::new(
+        let mut canvas = Box::new(block_on(Canvas::new(
             render_window,
             fs_spv_data,
             Some(images),
@@ -230,7 +234,10 @@ fn main() {
             push_constants,
             state_tx,
             state_rx,
-        ));
+        )));
+        // Make channels for sending events to Canvas
+        let (canvas_event_tx, canvas_event_rx) = sync_channel::<EventThreadMessage>(24);
+        drawables.insert(canvas.window.id(), canvas_event_tx);
 
         // Setup post-processing shaders if specified
         if let Some(postprocess_shaders) = matches.values_of("postprocess") {
@@ -264,12 +271,27 @@ fn main() {
         dashboard_window.set_title("Dashboard");
         dashboard_window.set_inner_size(PhysicalSize::new(500, 1250));
         window_ids.push(dashboard_window.id());
-        // Setup Dashboard state
+        // Setup Dashboard
         let mut dashboard = block_on(Dashboard::new(dashboard_window, dashboard_tx, dashboard_rx));
+        // Make channels for sending events to Dashboard
+        let (dashboard_event_tx, dashboard_event_rx) = sync_channel::<EventThreadMessage>(24);
+        drawables.insert(dashboard.window.id(), dashboard_event_tx);
+
+        thread::spawn(move || {
+            while let Ok(thread_event) = canvas_event_rx.recv() {
+                match thread_event {
+                    EventThreadMessage::Tick => {
+                        canvas.update();
+                        canvas.render_canvas();
+                        canvas.post_render();
+                    }
+                    EventThreadMessage::SystemEvent(event) => canvas.input(&event),
+                }
+            }
+        });
 
         let mut last_render_time = Instant::now();
         event_loop.run(move |event, _, control_flow| {
-            // Dashboard handles all types of events.
             dashboard.input(&event);
             match event {
                 Event::RedrawRequested(_) => {}
@@ -277,45 +299,28 @@ fn main() {
                     let now = Instant::now();
                     let delta = (now - last_render_time).as_millis();
                     if delta >= UPDATE_INTERVAL_MS {
-                        canvas.update();
-                        canvas.render_canvas();
-                        canvas.post_render();
-
                         dashboard.update();
                         dashboard.render_dashboard();
                         dashboard.post_render();
+
                         last_render_time = now;
                     }
                 }
-                Event::WindowEvent {
-                    ref event,
-                    window_id,
-                } => {
-                    let mut handled = false;
-                    if window_id == canvas.window.id() {
-                        // If event is from our render window, pass to Canvas.
-                        handled = canvas.input(event);
-                    }
-                    // If Canvas didn't handle event or event is from Dashboard window, handle here.
-                    if !handled {
-                        // If state object doesn't handle the event, handle here.
-                        match event {
-                            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                            WindowEvent::KeyboardInput { input, .. } => match input {
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(VirtualKeyCode::Escape),
-                                    ..
-                                } => {
-                                    canvas.exit_requested();
-                                    *control_flow = ControlFlow::Exit
-                                }
-                                _ => {}
-                            },
-                            _ => {}
+                Event::WindowEvent { ref event, .. } => match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    WindowEvent::KeyboardInput { input, .. } => match input {
+                        KeyboardInput {
+                            state: ElementState::Pressed,
+                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                            ..
+                        } => {
+                            canvas.exit_requested();
+                            *control_flow = ControlFlow::Exit
                         }
-                    }
-                }
+                        _ => {}
+                    },
+                    _ => {}
+                },
                 _ => {}
             }
         });

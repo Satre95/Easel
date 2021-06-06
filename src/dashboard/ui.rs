@@ -1,8 +1,5 @@
 use super::{Dashboard, DashboardMessage};
-use crate::{
-    drawable::Drawable, recording::Recorder, recording::MOVIE_TEXTURE_FORMAT, uniforms,
-    vector::UIntVector2,
-};
+use crate::{recording::Recorder, recording::MOVIE_TEXTURE_FORMAT, uniforms, vector::UIntVector2};
 use imgui::Condition;
 use imgui::{im_str, ImString, StyleColor};
 use log::{info, warn};
@@ -329,11 +326,9 @@ impl Dashboard {
 
         self.queue.submit(Some(encoder.finish()));
     }
-}
 
-impl Drawable for Dashboard {
     /// Receives events from the winit event queue and responds appropriately.
-    fn input(&mut self, event: &winit::event::Event<()>) {
+    pub fn input(&mut self, event: &winit::event::Event<()>) {
         match event {
             Event::WindowEvent {
                 ref event,
@@ -372,9 +367,5 @@ impl Drawable for Dashboard {
         }
         self.imgui_platform
             .handle_event(self.imgui_context.io_mut(), &self.window, event);
-    }
-
-    fn window_id(&self) -> winit::window::WindowId {
-        self.window.id()
     }
 }
