@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use crate::utils::{convert_bytes_to_value, convert_value_to_bytes};
 use crate::vector::{IntVector4, Vector4};
 use bytemuck::{Pod, Zeroable};
@@ -49,71 +47,37 @@ impl Uniforms {
         }
     }
 }
-
-/// Trait to represent uniform of any type loaded from file.
-pub trait UserUniform {
-    /// Size in bytes of the data to be bound to the shader.
-    fn size(&self) -> usize;
-    /// Name as referenced in the JSON file.
-    fn name(&self) -> String;
-    /// The byte data to be bound to the shader.
-    fn bytes(&self) -> Vec<u8>;
-    /// The Rust [std::any::TypeId] associated with this uniform.
-    fn type_id(&self) -> std::any::TypeId;
-    /// Get a copy of this underlying uniform on the heap.
-    fn copy(&self) -> Box<dyn UserUniform>;
-    /// Set the given bytes for this uniform.
-    fn set(&mut self, bytes: &[u8]);
+#[derive(Clone, Copy)]
+pub enum UserUniformType {
+    Float32,
+    Float64,
+    UInt32,
+    UInt64,
+    Int32,
+    Int64,
+    Bool,
 }
 
 #[repr(C)]
-/// Internal struct used for loading uniforms from JSON.
-pub struct TypedUniform<RealType, BoundType> {
-    /// The data
-    value: BoundType,
-    /// Name as referenced in the JSON file.
-    name: String,
-    phantom: std::marker::PhantomData<RealType>,
+pub struct UserUniform {
+    pub bytes: Vec<u8>,
+    pub name: String,
+    pub inherent_type: UserUniformType,
 }
 
-impl<RealType: 'static, BoundType: 'static> TypedUniform<RealType, BoundType> {
-    fn new(value: BoundType, name: String) -> Self {
-        Self {
-            value,
-            name,
-            phantom: std::marker::PhantomData,
+impl UserUniform {
+    pub fn get_value<T: Copy>(&self) -> Result<T, &str> {
+        convert_bytes_to_value(&self.bytes)
+    }
+}
+
+impl Clone for UserUniform {
+    fn clone(&self) -> Self {
+        UserUniform {
+            bytes: self.bytes.clone(),
+            name: self.name.clone(),
+            inherent_type: self.inherent_type,
         }
-    }
-}
-
-impl<RealType: 'static, BoundType: 'static + Clone + Copy> UserUniform
-    for TypedUniform<RealType, BoundType>
-{
-    fn size(&self) -> usize {
-        std::mem::size_of_val(&self.value)
-    }
-
-    fn name(&self) -> String {
-        self.name.to_string()
-    }
-
-    fn bytes(&self) -> Vec<u8> {
-        convert_value_to_bytes(self.value.clone())
-    }
-
-    fn type_id(&self) -> std::any::TypeId {
-        return std::any::TypeId::of::<TypedUniform<RealType, BoundType>>();
-    }
-
-    fn copy(&self) -> Box<dyn UserUniform> {
-        Box::new(TypedUniform::<RealType, BoundType>::new(
-            self.value.clone(),
-            self.name.clone(),
-        ))
-    }
-
-    fn set(&mut self, bytes: &[u8]) {
-        self.value = convert_bytes_to_value(bytes).unwrap();
     }
 }
 
@@ -136,8 +100,8 @@ impl<RealType: 'static, BoundType: 'static + Clone + Copy> UserUniform
 /// }
 /// ```
 /// Returns a vector of [UserUniform] objects that provided everything needed to bind to a shader.
-pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<Box<dyn UserUniform>> {
-    let mut uniforms: Vec<Box<dyn UserUniform>> = Vec::new();
+pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<UserUniform> {
+    let mut uniforms: Vec<UserUniform> = Vec::new();
     let uniforms_json = &data["uniforms"];
     if !uniforms_json.is_null() {
         let entries = uniforms_json.entries();
@@ -147,41 +111,48 @@ pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<Box<dyn UserUnifor
             let type_str = array_itr.next().unwrap().as_str().unwrap();
             let value = array_itr.next().unwrap();
             if type_str == "f32" {
-                uniforms.push(Box::new(TypedUniform::<f32, f32>::new(
-                    value.as_f32().unwrap(),
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_f32().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::Float32,
+                });
             } else if type_str == "f64" {
-                uniforms.push(Box::new(TypedUniform::<f64, f64>::new(
-                    value.as_f64().unwrap(),
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_f64().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::Float64,
+                });
             } else if type_str == "u32" {
-                uniforms.push(Box::new(TypedUniform::<u32, u32>::new(
-                    value.as_u32().unwrap(),
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_u32().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::UInt32,
+                });
             } else if type_str == "u64" {
-                uniforms.push(Box::new(TypedUniform::<u64, u64>::new(
-                    value.as_u64().unwrap(),
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_u64().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::UInt64,
+                });
             } else if type_str == "i32" {
-                uniforms.push(Box::new(TypedUniform::<i32, i32>::new(
-                    value.as_i32().unwrap(),
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_i32().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::Int32,
+                });
             } else if type_str == "i64" {
-                uniforms.push(Box::new(TypedUniform::<i64, i64>::new(
-                    value.as_i64().unwrap(),
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_i64().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::Int64,
+                });
             } else if type_str == "bool" {
                 // Note we bind booleans as u32
-                uniforms.push(Box::new(TypedUniform::<bool, u32>::new(
-                    value.as_bool().unwrap() as u32,
-                    String::from(name),
-                )));
+                uniforms.push(UserUniform {
+                    bytes: convert_value_to_bytes(value.as_bool().unwrap()),
+                    name: String::from(name),
+                    inherent_type: UserUniformType::Bool,
+                });
             } else {
                 error!("Uniform with invalid type {} found, ignoring.", type_str);
             }
@@ -195,46 +166,54 @@ pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<Box<dyn UserUnifor
 ///
 /// * `ui` - Reference to [imgui::Ui] object.
 /// * `uniform` - The [UserUniform] object to visualise and update.
-pub fn update_user_uniform_ui(ui: &imgui::Ui, uniform: &mut Box<dyn UserUniform>) {
-    if uniform.type_id() == TypeId::of::<TypedUniform<f32, f32>>() {
-        let mut value: f32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        ui.input_float(&ImString::from(uniform.name()), &mut value)
-            .build();
-        uniform.set(&convert_value_to_bytes(value));
-    } else if uniform.type_id() == TypeId::of::<TypedUniform<i32, i32>>() {
-        let mut value: i32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        ui.input_int(&ImString::from(uniform.name()), &mut value)
-            .build();
-        uniform.set(&convert_value_to_bytes(value));
-    } else if uniform.type_id() == TypeId::of::<TypedUniform<u32, u32>>() {
-        let value: u32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        let mut value_i32 = value as i32;
-        ui.input_int(&ImString::from(uniform.name()), &mut value_i32)
-            .build();
-        uniform.set(&convert_value_to_bytes(value));
-    }
-    // 64-bit types
-    else if uniform.type_id() == TypeId::of::<TypedUniform<f64, f64>>() {
-        let mut value: f32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        ui.input_float(&ImString::from(uniform.name()), &mut value)
-            .build();
-        uniform.set(&convert_value_to_bytes(value as f64));
-    } else if uniform.type_id() == TypeId::of::<TypedUniform<i64, i64>>() {
-        let mut value: i32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        ui.input_int(&ImString::from(uniform.name()), &mut value)
-            .build();
-        uniform.set(&convert_value_to_bytes(value as i64));
-    } else if uniform.type_id() == TypeId::of::<TypedUniform<u64, u64>>() {
-        let value: u32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        let mut value_i32 = value as i32;
-        ui.input_int(&ImString::from(uniform.name()), &mut value_i32)
-            .build();
-        uniform.set(&convert_value_to_bytes(value_i32 as u64));
-    // Special case: bool
-    } else if uniform.type_id() == TypeId::of::<TypedUniform<bool, u32>>() {
-        let value: u32 = convert_bytes_to_value(&uniform.bytes()).unwrap();
-        let mut value_bool = value != 0;
-        ui.checkbox(&ImString::from(uniform.name()), &mut value_bool);
-        uniform.set(&convert_value_to_bytes(value_bool as u32));
+pub fn update_user_uniform_ui(ui: &imgui::Ui, uniform: &mut UserUniform) {
+    match uniform.inherent_type {
+        // 32 bit types
+        UserUniformType::Float32 => {
+            let mut value = uniform.get_value::<f32>().unwrap();
+            ui.input_float(&ImString::from(uniform.name.clone()), &mut value)
+                .build();
+            uniform.bytes = convert_value_to_bytes(value);
+        }
+        UserUniformType::Int32 => {
+            let mut value = uniform.get_value::<i32>().unwrap();
+            ui.input_int(&ImString::from(uniform.name.clone()), &mut value)
+                .build();
+            uniform.bytes = convert_value_to_bytes(value);
+        }
+        UserUniformType::UInt32 => {
+            let value = uniform.get_value::<u32>().unwrap();
+            let mut value_i32 = value as i32;
+            ui.input_int(&ImString::from(uniform.name.clone()), &mut value_i32)
+                .build();
+            uniform.bytes = convert_value_to_bytes(value);
+        }
+        // 64 bit types
+        UserUniformType::Float64 => {
+            let mut value = uniform.get_value::<f32>().unwrap();
+            ui.input_float(&ImString::from(uniform.name.clone()), &mut value)
+                .build();
+            uniform.bytes = convert_value_to_bytes(value as f64);
+        }
+        UserUniformType::Int64 => {
+            let mut value = uniform.get_value::<i32>().unwrap();
+            ui.input_int(&ImString::from(uniform.name.clone()), &mut value)
+                .build();
+            uniform.bytes = convert_value_to_bytes(value as i64);
+        }
+        UserUniformType::UInt64 => {
+            let value = uniform.get_value::<u32>().unwrap();
+            let mut value_i32 = value as i32;
+            ui.input_int(&ImString::from(uniform.name.clone()), &mut value_i32)
+                .build();
+            uniform.bytes = convert_value_to_bytes(value_i32 as u64);
+        }
+        // Bool is a special case
+        UserUniformType::Bool => {
+            let value = uniform.get_value::<u32>().unwrap();
+            let mut value_bool = value != 0;
+            ui.checkbox(&ImString::from(uniform.name.clone()), &mut value_bool);
+            uniform.bytes = convert_value_to_bytes(value_bool as u32);
+        }
     }
 }

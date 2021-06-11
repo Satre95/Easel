@@ -30,7 +30,7 @@ pub enum CanvasMessage {
     /// Indication pause play state changed from canvas window.
     PausePlayChanged,
     /// Used by Canvas to tell Dashboard how to build the editor GUI for a given custom uniform.
-    UniformForGUI(Box<dyn UserUniform>),
+    UniformForGUI(UserUniform),
     /// Change the resolution of the painting in the GUI.
     UpdatePaintingResolutioninGUI(IntVector2),
 }

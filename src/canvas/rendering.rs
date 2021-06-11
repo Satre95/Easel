@@ -69,18 +69,18 @@ impl Canvas {
             }
             render_pass.set_pipeline(&self.render_pipeline);
             // Set push constants, if any.
-            if let Some(constants) = self.push_constants.as_ref() {
-                let mut offset: usize = 0;
-                for a_constant in constants {
-                    let bytes = a_constant.bytes();
-                    render_pass.set_push_constants(
-                        wgpu::ShaderStage::FRAGMENT,
-                        offset as u32,
-                        &bytes,
-                    );
-                    offset += a_constant.size();
-                }
-            }
+            // if let Some(constants) = self.push_constants.as_ref() {
+            //     let mut offset: usize = 0;
+            //     for a_constant in constants {
+            //         let bytes = a_constant.bytes();
+            //         render_pass.set_push_constants(
+            //             wgpu::ShaderStage::FRAGMENT,
+            //             offset as u32,
+            //             &bytes,
+            //         );
+            //         offset += a_constant.size();
+            //     }
+            // }
             render_pass.draw(0..3, 0..1);
         }
 
@@ -280,18 +280,18 @@ impl Canvas {
             }
             render_pass.set_pipeline(&self.painting_pipeline);
             // Set push constants, if any.
-            if let Some(constants) = self.push_constants.as_ref() {
-                let mut offset: usize = 0;
-                for a_constant in constants {
-                    let bytes = a_constant.bytes();
-                    render_pass.set_push_constants(
-                        wgpu::ShaderStage::FRAGMENT,
-                        offset as u32,
-                        &bytes,
-                    );
-                    offset += a_constant.size();
-                }
-            }
+            // if let Some(constants) = self.push_constants.as_ref() {
+            //     let mut offset: usize = 0;
+            //     for a_constant in constants {
+            //         let bytes = a_constant.bytes();
+            //         render_pass.set_push_constants(
+            //             wgpu::ShaderStage::FRAGMENT,
+            //             offset as u32,
+            //             &bytes,
+            //         );
+            //         offset += a_constant.size();
+            //     }
+            // }
             render_pass.draw(0..3, 0..1);
         }
 
@@ -384,7 +384,7 @@ impl Canvas {
     pub fn post_render(&mut self) {
         // Inform Dashboard of each of our user-provided uniforms.
         for a_uniform in &self.user_uniforms {
-            let uni = a_uniform.copy();
+            let uni = a_uniform.clone();
             self.transmitter
                 .send(CanvasMessage::UniformForGUI(uni))
                 .unwrap();
@@ -453,18 +453,18 @@ impl Canvas {
             }
             render_pass.set_pipeline(&self.movie_pipeline);
             // Set push constants, if any.
-            if let Some(constants) = self.push_constants.as_ref() {
-                let mut offset: usize = 0;
-                for a_constant in constants {
-                    let bytes = a_constant.bytes();
-                    render_pass.set_push_constants(
-                        wgpu::ShaderStage::FRAGMENT,
-                        offset as u32,
-                        &bytes,
-                    );
-                    offset += a_constant.size();
-                }
-            }
+            // if let Some(constants) = self.push_constants.as_ref() {
+            //     let mut offset: usize = 0;
+            //     for a_constant in constants {
+            //         let bytes = a_constant.bytes();
+            //         render_pass.set_push_constants(
+            //             wgpu::ShaderStage::FRAGMENT,
+            //             offset as u32,
+            //             &bytes,
+            //         );
+            //         offset += a_constant.size();
+            //     }
+            // }
             render_pass.draw(0..3, 0..1);
         }
 

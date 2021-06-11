@@ -7,7 +7,7 @@ use imgui::FontSource;
 use imgui_wgpu::RendererConfig;
 use imgui_winit_support;
 use std::{
-    sync::mpsc::{Receiver, SyncSender},
+    sync::mpsc::{Receiver, Sender},
     time::Instant,
 };
 use wgpu::{PowerPreference, RequestAdapterOptions};
@@ -28,7 +28,7 @@ pub enum DashboardMessage {
     PaintingRenderRequested(UIntVector2),
     PaintingResolutionUpdated(UIntVector2),
     MovieRenderRequested(UIntVector2),
-    UniformUpdatedViaGUI(Box<dyn UserUniform>),
+    UniformUpdatedViaGUI(UserUniform),
 }
 
 /// Centralized controller and GUI class.
@@ -54,7 +54,7 @@ pub struct Dashboard {
 
     state: DashboardState,
 
-    transmitter: SyncSender<DashboardMessage>,
+    transmitter: Sender<DashboardMessage>,
     receiver: Receiver<CanvasMessage>,
     recorder: Option<Recorder>,
     last_movie_frame_time: Option<Instant>,
@@ -67,7 +67,7 @@ impl Dashboard {
     /// * `receiver` - [std::sync::mpsc::Receiver] object used to receive messages from [crate::canvas::Canvas]
     pub async fn new(
         window: Window,
-        transmitter: SyncSender<DashboardMessage>,
+        transmitter: Sender<DashboardMessage>,
         receiver: Receiver<CanvasMessage>,
     ) -> Self {
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
@@ -230,7 +230,10 @@ impl Dashboard {
             let msg_result = self.receiver.try_recv();
             match msg_result {
                 Ok(msg) => self.handle_message(msg),
-                Err(_) => break,
+                Err(recv_error) => match recv_error {
+                    std::sync::mpsc::TryRecvError::Disconnected => break,
+                    std::sync::mpsc::TryRecvError::Empty => {}
+                },
             }
         }
 
@@ -274,7 +277,7 @@ impl Dashboard {
     pub fn post_render(&mut self) {
         for uniform in &self.state.gui_uniforms {
             self.transmitter
-                .send(DashboardMessage::UniformUpdatedViaGUI(uniform.copy()))
+                .send(DashboardMessage::UniformUpdatedViaGUI(uniform.clone()))
                 .unwrap();
         }
         self.state.gui_uniforms.clear();

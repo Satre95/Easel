@@ -19,14 +19,6 @@ pub fn default_color_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     })
 }
 
-/// Trait used to signify a texture, regardless of its source.
-pub trait Texture {
-    /// Get [wgpu::TextureView] view into the texture memory.
-    fn get_view(&self, mip_level: u32) -> wgpu::TextureView;
-    /// Get a [wgpu::Texture] handle to the texture memory.
-    fn get_handle(&self) -> &wgpu::Texture;
-}
-
 /// Represents an image loaded into a [wgpu::Texture] from a file.
 /// Currently, only 2D textures are supported.
 pub struct AssetTexture {
@@ -83,10 +75,8 @@ impl AssetTexture {
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
         }
     }
-}
 
-impl Texture for AssetTexture {
-    fn get_view(&self, mip_level: u32) -> wgpu::TextureView {
+    pub fn get_view(&self, mip_level: u32) -> wgpu::TextureView {
         self.handle.create_view(&wgpu::TextureViewDescriptor {
             label: None,
             format: Some(self.format),
@@ -99,7 +89,7 @@ impl Texture for AssetTexture {
         })
     }
 
-    fn get_handle(&self) -> &wgpu::Texture {
-        &self.handle
-    }
+    // pub fn get_handle(&self) -> &wgpu::Texture {
+    //     &self.handle
+    // }
 }

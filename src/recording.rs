@@ -20,7 +20,7 @@ enum ThreadToRecorderSignal {
 
 pub struct Recorder {
     join_handle: JoinHandle<()>,
-    sender: std::sync::mpsc::SyncSender<RecorderToThreadSignal>,
+    sender: std::sync::mpsc::Sender<RecorderToThreadSignal>,
     receiver: std::sync::mpsc::Receiver<ThreadToRecorderSignal>,
     pub done: bool,
     pub ready: bool,
@@ -40,8 +40,7 @@ impl Recorder {
             _ => panic!("Unsupported texture format. Only the following texture formats are supported: Rgba8UnormSrgb")
         };
         let resolution_string = format!("{}x{}", width.to_string(), height.to_string());
-        let buf_size: usize = 60 * 4 * width as usize * height as usize;
-        let (our_sender, thread_receiver) = std::sync::mpsc::sync_channel(buf_size);
+        let (our_sender, thread_receiver) = std::sync::mpsc::channel();
         let (thread_sender, our_receiver) = std::sync::mpsc::channel();
         let framerate_str = framerate.to_string();
         let join_handle = std::thread::spawn(move || {

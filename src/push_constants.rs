@@ -1,5 +1,4 @@
 use std::{mem, slice};
-
 pub trait PushConstant {
     fn size(&self) -> usize;
     fn name(&self) -> &str;

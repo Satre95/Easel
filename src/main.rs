@@ -105,7 +105,7 @@ mod canvas;
 mod dashboard;
 // mod drawable;
 mod postprocessing;
-mod push_constants;
+// mod push_constants;
 mod recording;
 mod skeletons;
 mod texture;
@@ -115,7 +115,7 @@ mod vector;
 
 use clap::{App, Arg};
 use futures::executor::block_on;
-use log::error;
+use log::{error, info};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -127,206 +127,226 @@ use crate::{
     dashboard::{Dashboard, DashboardMessage},
 };
 use canvas::Canvas;
-use std::{cmp::max, time::Instant};
+use std::sync::mpsc::channel;
+use std::{cmp::max, thread, time::Instant};
 use std::{collections::HashMap, fs, path::Path};
-use std::{sync::mpsc::sync_channel, thread};
 use winit::dpi::PhysicalSize;
 
 static UPDATE_INTERVAL_MS: u128 = 16;
 
-enum EventThreadMessage {
-    Tick,
-    SystemEvent(winit::event::Event<'static, ()>),
-    // Exit,
-}
+// enum EventThreadMessage {
+//     Tick,
+//     SystemEvent(winit::event::Event<'static, ()>),
+//     // Exit,
+// }
 
 fn main() {
     env_logger::init();
     // Load command line args.
     let matches = setup_program_args();
 
-    if let Some(shader_file) = matches.value_of("shader") {
-        if matches.is_present("generate") {
-            let path = std::path::Path::new(shader_file);
-            if path.exists() {
-                error!(
-                    "There is already a file present at {}, canceling write.",
-                    shader_file
-                );
-                return;
-            }
-            std::fs::write(&path, skeletons::SHADER_SKELETON).unwrap();
-        }
+    let shader_file = matches
+        .value_of("shader")
+        .expect("Please provide a shader file.");
 
-        let fs_spv_data = match utils::load_shader(shader_file) {
-            Ok(data) => data,
-            Err(e) => {
-                error!("Error compiling/loading shader: {}", e);
-                return;
-            }
-        };
-
-        // Get textures to load, if any
-        let mut images_to_load: Vec<String> = Vec::new();
-        if let Some(files) = matches.values_of("textures") {
-            for a_file in files {
-                images_to_load.push(String::from(a_file));
-            }
-        }
-        // Set width & height, if specified.
-        let mut canvas_width = 1920;
-        let mut canvas_height = 1280;
-        if let Some(width) = matches.value_of("width") {
-            canvas_width = width.parse::<i32>().unwrap()
-        }
-        if let Some(height) = matches.value_of("height") {
-            canvas_height = height.parse::<i32>().unwrap()
-        }
-
-        // Load custom uniforms from JSON file if specified.
-        let mut custom_uniforms = None;
-        let mut push_constants = None;
-        if let Some(uniforms_file) = matches.value_of("uniforms") {
-            let text =
-                fs::read_to_string(uniforms_file).expect("Error reading uniforms from file.");
-            let json_data = json::parse(&text).expect("Error parsing JSON.");
-            let cu = uniforms::load_uniforms_from_json(&json_data);
-            if !cu.is_empty() {
-                custom_uniforms = Some(cu);
-            }
-            let pc = push_constants::load_push_constants_from_json(&json_data);
-            if !pc.is_empty() {
-                push_constants = Some(pc);
-            }
-        }
-
-        // Setup the render window.
-        let event_loop = EventLoop::new();
-        let render_window = WindowBuilder::new().build(&event_loop).unwrap();
-        render_window.set_title("Canvas");
-        render_window.set_inner_size(PhysicalSize::new(canvas_width, canvas_height));
-        render_window.set_decorations(true);
-        render_window.set_resizable(true);
-        let mut images: Vec<image::DynamicImage> = Vec::new();
-        for a_file in &images_to_load {
-            let an_image = image::open(Path::new(a_file));
-            match an_image {
-                Ok(img) => images.push(img),
-                Err(error) => {
-                    error!("Error loading image: {}", error);
-                    return;
-                }
-            }
-        }
-
-        // Setup channels for Dashboard <--> Canvas communication
-        let (dashboard_tx, state_rx) = sync_channel::<DashboardMessage>(1024);
-        let (state_tx, dashboard_rx) = sync_channel::<CanvasMessage>(1024);
-
-        let mut drawables = HashMap::new();
-        let mut window_ids = vec![render_window.id()];
-        // Setup render state.
-        let mut canvas = Box::new(block_on(Canvas::new(
-            render_window,
-            fs_spv_data,
-            Some(images),
-            custom_uniforms,
-            push_constants,
-            state_tx,
-            state_rx,
-        )));
-        // Make channels for sending events to Canvas
-        let (canvas_event_tx, canvas_event_rx) = sync_channel::<EventThreadMessage>(24);
-        drawables.insert(canvas.window.id(), canvas_event_tx);
-
-        // Setup post-processing shaders if specified
-        if let Some(postprocess_shaders) = matches.values_of("postprocess") {
-            let mut postprocess_shader_modules = Vec::with_capacity(postprocess_shaders.len());
-            for shader in postprocess_shaders {
-                postprocess_shader_modules.push(utils::load_shader(shader).unwrap());
-            }
-            for module in postprocess_shader_modules {
-                canvas.add_post_processing_shader(module);
-            }
-        }
-
-        // Setup auto-updating, if specified.
-        if let Some(interval_str) = matches.value_of("auto-update") {
-            let interval = max(
-                interval_str
-                    .parse::<u64>()
-                    .expect("Invalid update interval provided. Must be integer"),
-                80,
+    if matches.is_present("generate") {
+        let path = std::path::Path::new(shader_file);
+        if path.exists() {
+            error!(
+                "There is already a file present at {}, canceling write.",
+                shader_file
             );
-            canvas.watch_shader_file(shader_file, interval);
-            // If also given custom uniforms, start watching that file.
-            if let Some(uniforms_file) = matches.value_of("uniforms") {
-                canvas.watch_uniforms_file(uniforms_file, interval);
+            return;
+        }
+        std::fs::write(&path, skeletons::SHADER_SKELETON).unwrap();
+    }
+
+    // Get textures to load, if any
+    let mut images_to_load: Vec<String> = Vec::new();
+    if let Some(files) = matches.values_of("textures") {
+        for a_file in files {
+            images_to_load.push(String::from(a_file));
+        }
+    }
+
+    // Set width & height, if specified.
+    let mut canvas_width = 1920;
+    let mut canvas_height = 1280;
+    if let Some(width) = matches.value_of("width") {
+        canvas_width = width.parse::<i32>().unwrap()
+    }
+    if let Some(height) = matches.value_of("height") {
+        canvas_height = height.parse::<i32>().unwrap()
+    }
+
+    // Setup the render window.
+    let event_loop = EventLoop::new();
+    let render_window = WindowBuilder::new().build(&event_loop).unwrap();
+    render_window.set_title("Canvas");
+    render_window.set_inner_size(PhysicalSize::new(canvas_width, canvas_height));
+    render_window.set_decorations(true);
+    render_window.set_resizable(true);
+    let mut images: Vec<image::DynamicImage> = Vec::new();
+    for a_file in &images_to_load {
+        let an_image = image::open(Path::new(a_file));
+        match an_image {
+            Ok(img) => images.push(img),
+            Err(error) => {
+                error!("Error loading image: {}", error);
+                return;
             }
         }
+    }
 
-        // Setup another window for Dashboard
-        let dashboard_window_builder = WindowBuilder::new().with_resizable(true);
-        let dashboard_window = dashboard_window_builder.build(&event_loop).unwrap();
-        dashboard_window.set_title("Dashboard");
-        dashboard_window.set_inner_size(PhysicalSize::new(500, 1250));
-        window_ids.push(dashboard_window.id());
-        // Setup Dashboard
-        let mut dashboard = block_on(Dashboard::new(dashboard_window, dashboard_tx, dashboard_rx));
-        // Make channels for sending events to Dashboard
-        let (dashboard_event_tx, dashboard_event_rx) = sync_channel::<EventThreadMessage>(24);
-        drawables.insert(dashboard.window.id(), dashboard_event_tx);
+    // Setup channels for Dashboard <--> Canvas communication
+    let (dashboard_tx, state_rx) = channel::<DashboardMessage>();
+    let (state_tx, dashboard_rx) = channel::<CanvasMessage>();
 
-        thread::spawn(move || {
-            while let Ok(thread_event) = canvas_event_rx.recv() {
-                match thread_event {
-                    EventThreadMessage::Tick => {
-                        canvas.update();
-                        canvas.render_canvas();
-                        canvas.post_render();
+    let mut drawables = HashMap::new();
+    // Make channels for sending events to Canvas
+    let (canvas_event_tx, canvas_event_rx) = channel();
+    drawables.insert(render_window.id(), canvas_event_tx);
+    let fs_spv_data = match utils::load_shader(shader_file) {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Error compiling/loading shader: {}", e);
+            return;
+        }
+    };
+
+    // Load custom uniforms from JSON file if specified.
+    let mut custom_uniforms = None;
+    // let mut push_constants = None;
+    if let Some(uniforms_file) = matches.value_of("uniforms") {
+        let text = fs::read_to_string(uniforms_file).expect("Error reading uniforms from file.");
+        let json_data = json::parse(&text).expect("Error parsing JSON.");
+        let cu = uniforms::load_uniforms_from_json(&json_data);
+        if !cu.is_empty() {
+            custom_uniforms = Some(cu);
+        }
+        // let pc = push_constants::load_push_constants_from_json(&json_data);
+        // if !pc.is_empty() {
+        //     push_constants = Some(pc);
+        // }
+    }
+    // Setup render state.
+    let mut canvas = Box::new(block_on(Canvas::new(
+        render_window,
+        fs_spv_data,
+        Some(images),
+        custom_uniforms,
+        // push_constants,
+        state_tx,
+        state_rx,
+    )));
+
+    // Setup post-processing shaders if specified
+    if let Some(postprocess_shaders) = matches.values_of("postprocess") {
+        let mut postprocess_shader_modules = Vec::with_capacity(postprocess_shaders.len());
+        for shader in postprocess_shaders {
+            postprocess_shader_modules.push(utils::load_shader(shader).unwrap());
+        }
+        for module in postprocess_shader_modules {
+            canvas.add_post_processing_shader(module);
+        }
+    }
+
+    // Setup auto-updating, if specified.
+    if let Some(interval_str) = matches.value_of("auto-update") {
+        let interval = max(
+            interval_str
+                .parse::<u64>()
+                .expect("Invalid update interval provided. Must be integer"),
+            80,
+        );
+        canvas.watch_shader_file(shader_file, interval);
+        // If also given custom uniforms, start watching that file.
+        if let Some(uniforms_file) = matches.value_of("uniforms") {
+            canvas.watch_uniforms_file(uniforms_file, interval);
+        }
+    }
+    let mut last_render_time = Instant::now();
+    thread::spawn(move || {
+        loop {
+            let msg_result = canvas_event_rx.try_recv();
+            match msg_result {
+                Ok(incoming_event) => canvas.input(incoming_event),
+                Err(recv_error) => match recv_error {
+                    std::sync::mpsc::TryRecvError::Empty => {}
+                    std::sync::mpsc::TryRecvError::Disconnected => {
+                        info!("Canvas window transmitter hung up. Exiting...");
+                        break;
                     }
-                    EventThreadMessage::SystemEvent(event) => canvas.input(&event),
+                },
+            }
+            let now = Instant::now();
+            let delta = (now - last_render_time).as_millis();
+            if delta >= UPDATE_INTERVAL_MS {
+                canvas.update();
+                canvas.render_canvas();
+                canvas.post_render();
+                last_render_time = now;
+            }
+        }
+        canvas.exit_requested()
+    });
+
+    // Setup another window for Dashboard
+    let dashboard_window_builder = WindowBuilder::new().with_resizable(true);
+    let dashboard_window = dashboard_window_builder.build(&event_loop).unwrap();
+    dashboard_window.set_title("Dashboard");
+    dashboard_window.set_inner_size(PhysicalSize::new(500, 1250));
+    dashboard_window.set_always_on_top(true);
+
+    // Setup Dashboard
+    let mut dashboard = block_on(Dashboard::new(dashboard_window, dashboard_tx, dashboard_rx));
+    let mut last_render_time = Instant::now();
+    event_loop.run(move |event, _event_loop, control_flow| {
+        *control_flow = match !drawables.is_empty() {
+            true => ControlFlow::Wait,
+            false => ControlFlow::Exit,
+        };
+        dashboard.imgui_input(&event);
+        match event {
+            Event::RedrawRequested(_) => {}
+            Event::MainEventsCleared => {
+                let now = Instant::now();
+                let delta = (now - last_render_time).as_millis();
+                if delta >= UPDATE_INTERVAL_MS {
+                    dashboard.update();
+                    dashboard.render_dashboard();
+                    dashboard.post_render();
+                    last_render_time = now;
                 }
             }
-        });
-
-        let mut last_render_time = Instant::now();
-        event_loop.run(move |event, _, control_flow| {
-            dashboard.input(&event);
-            match event {
-                Event::RedrawRequested(_) => {}
-                Event::MainEventsCleared => {
-                    let now = Instant::now();
-                    let delta = (now - last_render_time).as_millis();
-                    if delta >= UPDATE_INTERVAL_MS {
-                        dashboard.update();
-                        dashboard.render_dashboard();
-                        dashboard.post_render();
-
-                        last_render_time = now;
-                    }
-                }
-                Event::WindowEvent { ref event, .. } => match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    WindowEvent::KeyboardInput { input, .. } => match input {
+            Event::WindowEvent { event, window_id } => match event {
+                WindowEvent::CloseRequested
+                | WindowEvent::Destroyed
+                | WindowEvent::KeyboardInput {
+                    input:
                         KeyboardInput {
-                            state: ElementState::Pressed,
+                            state: ElementState::Released,
                             virtual_keycode: Some(VirtualKeyCode::Escape),
                             ..
-                        } => {
-                            canvas.exit_requested();
-                            *control_flow = ControlFlow::Exit
+                        },
+                    ..
+                } => {
+                    drawables.remove(&window_id);
+                }
+                _ => {
+                    if let Some(tx) = drawables.get(&window_id) {
+                        if let Some(window_event) = event.to_static() {
+                            tx.send(window_event).unwrap();
                         }
-                        _ => {}
-                    },
-                    _ => {}
-                },
-                _ => {}
-            }
-        });
-    } else {
-        error!("Please provide a fragment shader.")
-    }
+                    } else if dashboard.window.id() == window_id {
+                        dashboard.window_input(event.to_static().unwrap())
+                    }
+                }
+            },
+            _ => (),
+            // _ => {}
+        }
+    });
 }
 
 /// Sets up all arguments to be parsed by Easel

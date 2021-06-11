@@ -1,4 +1,3 @@
-use crate::push_constants::load_push_constants_from_json;
 use crate::uniforms::load_uniforms_from_json;
 use std::sync::mpsc::channel;
 
@@ -42,23 +41,24 @@ impl Canvas {
                     });
 
                 let layouts = [&self.bind_group_layouts[0], &self.bind_group_layouts[1]];
-                let mut constants_for_pipeline = vec![];
-                if let Some(constants) = self.push_constants.as_ref() {
-                    let mut size = 0;
-                    for a_constant in constants {
-                        size += a_constant.size();
-                    }
-                    constants_for_pipeline.push(wgpu::PushConstantRange {
-                        stages: wgpu::ShaderStage::FRAGMENT,
-                        range: 0..(size as u32),
-                    });
-                }
+                // let mut constants_for_pipeline = vec![];
+                // if let Some(constants) = self.push_constants.as_ref() {
+                //     let mut size = 0;
+                //     for a_constant in constants {
+                //         size += a_constant.size();
+                //     }
+                //     constants_for_pipeline.push(wgpu::PushConstantRange {
+                //         stages: wgpu::ShaderStage::FRAGMENT,
+                //         range: 0..(size as u32),
+                //     });
+                // }
                 let render_pipeline_layout =
                     self.device
                         .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                             label: Some("Canvas Pipeline Layout"),
                             bind_group_layouts: &layouts,
-                            push_constant_ranges: &constants_for_pipeline,
+                            // push_constant_ranges: &constants_for_pipeline,
+                            push_constant_ranges: &[],
                         });
                 let (render_pipeline, painting_pipeline, movie_pipeline) =
                     crate::utils::create_pipelines(
@@ -163,7 +163,7 @@ impl Canvas {
                     std::fs::read_to_string(file).expect("Error reading uniforms from file.");
                 let json_data = json::parse(&text).expect("Error parsing JSON");
                 self.user_uniforms = load_uniforms_from_json(&json_data);
-                self.push_constants = Some(load_push_constants_from_json(&json_data));
+                // self.push_constants = Some(load_push_constants_from_json(&json_data));
             }
             DebouncedEvent::Remove(path_buf) => {
                 info!(

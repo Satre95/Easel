@@ -27,7 +27,7 @@ pub struct DashboardState {
     pub painting_progress_receiver: Option<Receiver<WriteFinished>>,
     pub shader_compilation_error_msg: Option<String>,
     pub painting_start_time: Option<std::time::Instant>,
-    pub gui_uniforms: Vec<Box<dyn UserUniform>>,
+    pub gui_uniforms: Vec<UserUniform>,
 }
 
 impl DashboardState {
