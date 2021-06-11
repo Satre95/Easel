@@ -545,10 +545,7 @@ impl Canvas {
             let msg_result = self.receiver.try_recv();
             match msg_result {
                 Ok(msg) => self.dashboard_signal_received(msg),
-                Err(recv_error) => match recv_error {
-                    std::sync::mpsc::TryRecvError::Disconnected => break,
-                    std::sync::mpsc::TryRecvError::Empty => {}
-                },
+                Err(_) => break,
             }
         }
 
@@ -560,10 +557,7 @@ impl Canvas {
                     let msg_result = rx.try_recv();
                     match msg_result {
                         Ok(event) => file_events.push(event),
-                        Err(recv_error) => match recv_error {
-                            std::sync::mpsc::TryRecvError::Disconnected => break,
-                            std::sync::mpsc::TryRecvError::Empty => {}
-                        },
+                        Err(_) => break,
                     }
                 },
                 None => {}
@@ -580,10 +574,7 @@ impl Canvas {
                     let msg_result = rx.try_recv();
                     match msg_result {
                         Ok(event) => file_events.push(event),
-                        Err(recv_error) => match recv_error {
-                            std::sync::mpsc::TryRecvError::Disconnected => break,
-                            std::sync::mpsc::TryRecvError::Empty => {}
-                        },
+                        Err(_) => break,
                     }
                 },
                 None => {}

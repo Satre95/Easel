@@ -230,10 +230,7 @@ impl Dashboard {
             let msg_result = self.receiver.try_recv();
             match msg_result {
                 Ok(msg) => self.handle_message(msg),
-                Err(recv_error) => match recv_error {
-                    std::sync::mpsc::TryRecvError::Disconnected => break,
-                    std::sync::mpsc::TryRecvError::Empty => {}
-                },
+                Err(_) => break,
             }
         }
 
