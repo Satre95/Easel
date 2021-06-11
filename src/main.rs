@@ -331,7 +331,11 @@ fn main() {
                         },
                     ..
                 } => {
-                    drawables.remove(&window_id);
+                    if window_id == dashboard.window.id() {
+                        *control_flow = ControlFlow::Exit
+                    } else {
+                        drawables.remove(&window_id);
+                    }
                 }
                 _ => {
                     if let Some(tx) = drawables.get(&window_id) {
