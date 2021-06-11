@@ -148,8 +148,12 @@ pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<UserUniform> {
                 });
             } else if type_str == "bool" {
                 // Note we bind booleans as u32
+                let uint_value: u32 = match value.as_bool().unwrap() {
+                    true => 1,
+                    false => 0,
+                };
                 uniforms.push(UserUniform {
-                    bytes: convert_value_to_bytes(value.as_bool().unwrap()),
+                    bytes: convert_value_to_bytes(uint_value),
                     name: String::from(name),
                     inherent_type: UserUniformType::Bool,
                 });
