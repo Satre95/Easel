@@ -2,8 +2,8 @@ use std::num::NonZeroU64;
 
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingResource, LoadOp, Operations, PipelineLayoutDescriptor, RenderPassDescriptor,
-    RenderPipelineDescriptor,
+    BindingResource, BlendState, BufferBinding, LoadOp, Operations, PipelineLayoutDescriptor,
+    RenderPassDescriptor, RenderPipelineDescriptor,
 };
 
 pub enum PipelineType {
@@ -98,8 +98,10 @@ impl PostProcess {
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: crate::canvas::RENDER_TEXTURE_FORMAT,
-                color_blend: wgpu::BlendState::REPLACE,
-                alpha_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         };
@@ -116,8 +118,10 @@ impl PostProcess {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
+                cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
+                clamp_depth: false,
+                conservative: true,
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -131,8 +135,10 @@ impl PostProcess {
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: crate::canvas::PAINTING_TEXTURE_FORMAT,
-                color_blend: wgpu::BlendState::REPLACE,
-                alpha_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         };
@@ -149,8 +155,10 @@ impl PostProcess {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
+                cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
+                clamp_depth: false,
+                conservative: true,
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -164,8 +172,10 @@ impl PostProcess {
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: crate::recording::MOVIE_TEXTURE_FORMAT,
-                color_blend: wgpu::BlendState::REPLACE,
-                alpha_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         };
@@ -182,8 +192,10 @@ impl PostProcess {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
+                cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
+                clamp_depth: false,
+                conservative: true,
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -231,20 +243,20 @@ impl PostProcess {
             let mut entries = vec![];
             entries.push(BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::Buffer {
+                resource: BindingResource::Buffer(BufferBinding {
                     buffer: &uniforms.0,
                     offset: 0,
                     size: NonZeroU64::new(uniforms.1 as u64),
-                },
+                }),
             });
             if let Some(custom) = user_uniforms {
                 entries.push(BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Buffer {
+                    resource: BindingResource::Buffer(BufferBinding {
                         buffer: &custom.0,
                         offset: 0,
                         size: NonZeroU64::new(custom.1 as u64),
-                    },
+                    }),
                 });
             }
             bind_groups.push(device.create_bind_group(&BindGroupDescriptor {
@@ -272,8 +284,8 @@ impl PostProcess {
         // Encode render commands
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: None,
-            color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                attachment: &output,
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &output,
                 resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Clear(clear_color),

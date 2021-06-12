@@ -12,7 +12,8 @@ use std::{
 use stopwatch::Stopwatch;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BindGroupEntry, BindGroupLayoutEntry, BindingResource, PowerPreference, RequestAdapterOptions,
+    BindGroupEntry, BindGroupLayoutEntry, BindingResource, BufferBinding, PowerPreference,
+    RequestAdapterOptions,
 };
 use winit::{event::*, window::Window};
 
@@ -325,21 +326,21 @@ impl Canvas {
             // Provided Uniforms first.
             primary_bind_group_entries.push(wgpu::BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::Buffer {
+                resource: BindingResource::Buffer(BufferBinding {
                     buffer: &u_buffer,
                     offset: 0,
                     size: Some(NonZeroU64::new(std::mem::size_of_val(&uniforms) as u64).unwrap()),
-                },
+                }),
             });
             // Custom Uniforms next, if enabled.
             if let Some(cu_buffer) = &custom_uniforms_buffer {
                 primary_bind_group_entries.push(wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Buffer {
+                    resource: BindingResource::Buffer(BufferBinding {
                         buffer: &cu_buffer,
                         offset: 0,
                         size: Some(NonZeroU64::new(custom_uniforms_buffer_size as u64).unwrap()),
-                    },
+                    }),
                 });
             }
 

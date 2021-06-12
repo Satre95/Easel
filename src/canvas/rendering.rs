@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use crate::texture::default_color_sampler;
 use crate::vector::UIntVector2;
 use crate::{postprocessing, recording::MOVIE_TEXTURE_FORMAT};
@@ -31,7 +33,7 @@ impl Canvas {
             size: Extent3d {
                 width: self.size.width,
                 height: self.size.height,
-                depth: 1,
+                depth_or_array_layers: 1,
             },
             format: RENDER_TEXTURE_FORMAT,
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT | wgpu::TextureUsage::SAMPLED,
@@ -53,8 +55,8 @@ impl Canvas {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &render_tex_view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &render_tex_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(self.clear_color),
@@ -163,8 +165,8 @@ impl Canvas {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.output.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &frame.output.view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(self.clear_color),
@@ -196,7 +198,7 @@ impl Canvas {
             size: Extent3d {
                 width: resolution.x as u32,
                 height: resolution.y as u32,
-                depth: 1,
+                depth_or_array_layers: 1,
             },
             format: PAINTING_TEXTURE_FORMAT,
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT
@@ -264,8 +266,8 @@ impl Canvas {
             let painting_view = painting.create_view(&wgpu::TextureViewDescriptor::default());
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &painting_view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &painting_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(self.clear_color),
@@ -343,18 +345,19 @@ impl Canvas {
 
         // Then encode a copy of the texture to the buffer.
         {
-            let tex_copy_view = wgpu::TextureCopyView {
+            let tex_copy_view = wgpu::ImageCopyTexture {
                 mip_level: 0,
                 origin: Origin3d::ZERO,
                 texture: stage_out,
             };
-            let buf_copy_view = wgpu::BufferCopyView {
+            let buf_copy_view = wgpu::ImageCopyBuffer {
                 buffer: &buffer,
-                layout: wgpu::TextureDataLayout {
-                    bytes_per_row: ((resolution.x * 4) as usize * std::mem::size_of::<half::f16>())
-                        as u32,
+                layout: wgpu::ImageDataLayout {
+                    bytes_per_row: NonZeroU32::new(
+                        ((resolution.x * 4) as usize * std::mem::size_of::<half::f16>()) as u32,
+                    ),
                     offset: 0,
-                    rows_per_image: resolution.y as u32,
+                    rows_per_image: NonZeroU32::new(resolution.y),
                 },
             };
             encoder.copy_texture_to_buffer(
@@ -363,7 +366,7 @@ impl Canvas {
                 Extent3d {
                     width: resolution.x as u32,
                     height: resolution.y as u32,
-                    depth: 1,
+                    depth_or_array_layers: 1,
                 },
             );
         }
@@ -399,7 +402,7 @@ impl Canvas {
             size: Extent3d {
                 width: resolution.x as u32,
                 height: resolution.y as u32,
-                depth: 1,
+                depth_or_array_layers: 1,
             },
             format: MOVIE_TEXTURE_FORMAT,
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT
@@ -437,8 +440,8 @@ impl Canvas {
             let movie_frame_view = movie_frame.create_view(&wgpu::TextureViewDescriptor::default());
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &movie_frame_view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &movie_frame_view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(self.clear_color),
@@ -503,17 +506,19 @@ impl Canvas {
 
         // Then encode a copy of the texture to the buffer.
         {
-            let tex_copy_view = wgpu::TextureCopyView {
+            let tex_copy_view = wgpu::ImageCopyTexture {
                 mip_level: 0,
                 origin: Origin3d::ZERO,
                 texture: stage_out,
             };
-            let buf_copy_view = wgpu::BufferCopyView {
+            let buf_copy_view = wgpu::ImageCopyBuffer {
                 buffer: &buffer,
-                layout: wgpu::TextureDataLayout {
-                    bytes_per_row: ((resolution.x * 4) as usize * std::mem::size_of::<u8>()) as u32,
+                layout: wgpu::ImageDataLayout {
+                    bytes_per_row: NonZeroU32::new(
+                        ((resolution.x * 4) as usize * std::mem::size_of::<u8>()) as u32,
+                    ),
                     offset: 0,
-                    rows_per_image: resolution.y as u32,
+                    rows_per_image: NonZeroU32::new(resolution.y),
                 },
             };
             encoder.copy_texture_to_buffer(
@@ -522,7 +527,7 @@ impl Canvas {
                 Extent3d {
                     width: resolution.x as u32,
                     height: resolution.y as u32,
-                    depth: 1,
+                    depth_or_array_layers: 1,
                 },
             );
         }

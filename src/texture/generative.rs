@@ -2,7 +2,7 @@ use crate::texture::Texture;
 use byteorder::{NativeEndian, WriteBytesExt};
 use noise::{utils::*, Perlin};
 use std::vec::Vec;
-use wgpu::{Extent3d, Origin3d, TextureCopyView, TextureDataLayout};
+use wgpu::{Extent3d, ImageCopyTexture, Origin3d, TextureDataLayout};
 
 pub enum GenerativeTextureType {
     // Perlin(usize, usize, bool),
@@ -50,7 +50,7 @@ impl NoiseTexture2D {
             size: wgpu::Extent3d {
                 width: width as u32,
                 height: height as u32,
-                depth: 1,
+                depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
@@ -62,7 +62,7 @@ impl NoiseTexture2D {
 
         // Copy data over.
         queue.write_texture(
-            TextureCopyView {
+            ImageCopyTexture {
                 origin: Origin3d::ZERO,
                 mip_level: 0,
                 texture: &texture_handle,
@@ -76,7 +76,7 @@ impl NoiseTexture2D {
             Extent3d {
                 width: width as u32,
                 height: height as u32,
-                depth: 1,
+                depth_or_array_layers: 1,
             },
         );
 

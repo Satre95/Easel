@@ -60,7 +60,7 @@ impl Dashboard {
             let open_painting_externally = &mut self.state.open_painting_externally;
             let pause_while_painting = &mut self.state.pause_while_painting;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
-            let user_uniforms = &mut self.state.gui_uniforms;
+            let user_uniforms = &mut self.state.gui_uniforms.clone();
             let mut start_record_button_pressed = false;
             let mut stop_record_button_pressed = false;
             let recording_in_progress = &mut self.state.recording_in_progress;
@@ -211,8 +211,8 @@ impl Dashboard {
                             .open_on_double_click(true)
                             .build(&ui)
                         {
-                            for uniform in user_uniforms {
-                                uniforms::update_user_uniform_ui(&ui, uniform);
+                            for (_name, mut uniform) in user_uniforms {
+                                uniforms::update_user_uniform_ui(&ui, &mut uniform);
                             }
                         }
                     }
@@ -247,6 +247,7 @@ impl Dashboard {
                         ui.open_popup(im_str!("Recorder Processing"));
                     }
                 });
+
             if pause_button_pressed {
                 self.state.paused = !self.state.paused;
                 self.transmitter
@@ -308,8 +309,8 @@ impl Dashboard {
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.output.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &frame.output.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(self.clear_color),

@@ -3,8 +3,8 @@ use crate::{
     utils::WriteFinished,
     vector::{IntVector2, Vector2},
 };
+use std::collections::HashMap;
 use std::{sync::mpsc::Receiver, usize};
-
 /// Struct containing information the GUI is displaying and interacting with.
 pub struct DashboardState {
     pub last_render_time: f64,
@@ -27,7 +27,7 @@ pub struct DashboardState {
     pub painting_progress_receiver: Option<Receiver<WriteFinished>>,
     pub shader_compilation_error_msg: Option<String>,
     pub painting_start_time: Option<std::time::Instant>,
-    pub gui_uniforms: Vec<UserUniform>,
+    pub gui_uniforms: HashMap<String, UserUniform>,
 }
 
 impl DashboardState {
@@ -51,7 +51,7 @@ impl DashboardState {
             painting_progress_receiver: None,
             shader_compilation_error_msg: None,
             painting_start_time: None,
-            gui_uniforms: Vec::new(),
+            gui_uniforms: HashMap::new(),
         }
     }
 }

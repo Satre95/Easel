@@ -10,7 +10,7 @@ use std::io::BufWriter;
 use std::path::Path;
 use std::sync::mpsc::{channel, Receiver};
 use std::vec::Vec;
-use wgpu::{BindGroupLayoutDescriptor, BindGroupLayoutEntry};
+use wgpu::{BindGroupLayoutDescriptor, BindGroupLayoutEntry, BlendState};
 
 /// Private helper method to compile text shader using shaderc library.
 fn load_shader_source(
@@ -249,10 +249,10 @@ pub fn create_pipelines(
     };
     let primitive_state = wgpu::PrimitiveState {
         topology: wgpu::PrimitiveTopology::TriangleList,
-        strip_index_format: None,
-        front_face: wgpu::FrontFace::Ccw,
-        cull_mode: wgpu::CullMode::None,
+        cull_mode: None,
         polygon_mode: wgpu::PolygonMode::Fill,
+        conservative: true,
+        ..Default::default()
     };
     let multisample_state = wgpu::MultisampleState {
         count: 1,
@@ -268,8 +268,10 @@ pub fn create_pipelines(
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: texture_formats.0,
-                color_blend: wgpu::BlendState::REPLACE,
-                alpha_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),
@@ -287,8 +289,10 @@ pub fn create_pipelines(
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: texture_formats.1,
-                color_blend: wgpu::BlendState::REPLACE,
-                alpha_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),
@@ -306,8 +310,10 @@ pub fn create_pipelines(
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: texture_formats.2,
-                color_blend: wgpu::BlendState::REPLACE,
-                alpha_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),
@@ -366,8 +372,9 @@ pub fn create_swap_chain_pipeline(
         topology: wgpu::PrimitiveTopology::TriangleList,
         strip_index_format: None,
         front_face: wgpu::FrontFace::Ccw,
-        cull_mode: wgpu::CullMode::None,
+        cull_mode: None,
         polygon_mode: wgpu::PolygonMode::Fill,
+        ..Default::default()
     };
     let multisample_state = wgpu::MultisampleState {
         count: 1,
@@ -390,8 +397,10 @@ pub fn create_swap_chain_pipeline(
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: sc_tex_format,
-                alpha_blend: wgpu::BlendState::REPLACE,
-                color_blend: wgpu::BlendState::REPLACE,
+                blend: Some(BlendState {
+                    color: wgpu::BlendComponent::REPLACE,
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
                 write_mask: wgpu::ColorWrite::ALL,
             }],
         }),

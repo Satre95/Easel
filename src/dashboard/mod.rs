@@ -205,7 +205,9 @@ impl Dashboard {
                 self.state.paused = !self.state.paused;
             }
             CanvasMessage::UniformForGUI(uniform) => {
-                self.state.gui_uniforms.push(uniform);
+                self.state
+                    .gui_uniforms
+                    .insert(uniform.name.clone(), uniform);
             }
             CanvasMessage::UpdatePaintingResolutioninGUI(res) => {
                 self.state.painting_resolution = res;
@@ -272,7 +274,7 @@ impl Dashboard {
     }
 
     pub fn post_render(&mut self) {
-        for uniform in &self.state.gui_uniforms {
+        for (_name, uniform) in &self.state.gui_uniforms {
             self.transmitter
                 .send(DashboardMessage::UniformUpdatedViaGUI(uniform.clone()))
                 .unwrap();

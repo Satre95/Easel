@@ -1,5 +1,6 @@
 use image::{DynamicImage, GenericImageView};
-use wgpu::{Extent3d, Origin3d, TextureCopyView, TextureDataLayout};
+use std::num::NonZeroU32;
+use wgpu::{Extent3d, ImageCopyTexture, ImageDataLayout, Origin3d};
 
 /// Construct a [wgpu::Sampler] object using our defaults.
 pub fn default_color_sampler(device: &wgpu::Device) -> wgpu::Sampler {
@@ -39,7 +40,7 @@ impl AssetTexture {
             size: wgpu::Extent3d {
                 width: image.width(),
                 height: image.height(),
-                depth: 1,
+                depth_or_array_layers: 1,
             },
             mip_level_count: 1,
             usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
@@ -52,21 +53,21 @@ impl AssetTexture {
         let image_data = image.as_rgba8().unwrap();
         let bytes_per_row = image.width() as u32 * image::ColorType::Rgba8.bytes_per_pixel() as u32;
         queue.write_texture(
-            TextureCopyView {
+            ImageCopyTexture {
                 origin: Origin3d::ZERO,
                 mip_level: 0,
                 texture: &texture,
             },
             &image_data,
-            TextureDataLayout {
-                bytes_per_row,
+            ImageDataLayout {
+                bytes_per_row: NonZeroU32::new(bytes_per_row),
                 offset: 0,
-                rows_per_image: image.height(),
+                rows_per_image: NonZeroU32::new(image.height()),
             },
             Extent3d {
                 width: image.width(),
                 height: image.height(),
-                depth: 1,
+                depth_or_array_layers: 1,
             },
         );
 
@@ -78,14 +79,11 @@ impl AssetTexture {
 
     pub fn get_view(&self, mip_level: u32) -> wgpu::TextureView {
         self.handle.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
             format: Some(self.format),
             dimension: Some(wgpu::TextureViewDimension::D2),
             aspect: wgpu::TextureAspect::All,
             base_mip_level: mip_level,
-            level_count: None,
-            base_array_layer: 0,
-            array_layer_count: None,
+            ..Default::default()
         })
     }
 

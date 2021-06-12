@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use crate::utils::{convert_bytes_to_value, convert_value_to_bytes};
 use crate::vector::{IntVector4, Vector4};
 use bytemuck::{Pod, Zeroable};
@@ -78,6 +80,19 @@ impl Clone for UserUniform {
             name: self.name.clone(),
             inherent_type: self.inherent_type,
         }
+    }
+}
+
+impl PartialEq for UserUniform {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+impl Eq for UserUniform {}
+
+impl Hash for UserUniform {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
     }
 }
 
