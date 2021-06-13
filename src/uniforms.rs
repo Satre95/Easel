@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 use crate::utils::{convert_bytes_to_value, convert_value_to_bytes};
@@ -115,8 +116,8 @@ impl Hash for UserUniform {
 /// }
 /// ```
 /// Returns a vector of [UserUniform] objects that provided everything needed to bind to a shader.
-pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<UserUniform> {
-    let mut uniforms: Vec<UserUniform> = Vec::new();
+pub fn load_uniforms_from_json(data: &json::JsonValue) -> HashSet<UserUniform> {
+    let mut uniforms = HashSet::new();
     let uniforms_json = &data["uniforms"];
     if !uniforms_json.is_null() {
         let entries = uniforms_json.entries();
@@ -126,37 +127,37 @@ pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<UserUniform> {
             let type_str = array_itr.next().unwrap().as_str().unwrap();
             let value = array_itr.next().unwrap();
             if type_str == "f32" {
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(value.as_f32().unwrap()),
                     name: String::from(name),
                     inherent_type: UserUniformType::Float32,
                 });
             } else if type_str == "f64" {
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(value.as_f64().unwrap()),
                     name: String::from(name),
                     inherent_type: UserUniformType::Float64,
                 });
             } else if type_str == "u32" {
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(value.as_u32().unwrap()),
                     name: String::from(name),
                     inherent_type: UserUniformType::UInt32,
                 });
             } else if type_str == "u64" {
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(value.as_u64().unwrap()),
                     name: String::from(name),
                     inherent_type: UserUniformType::UInt64,
                 });
             } else if type_str == "i32" {
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(value.as_i32().unwrap()),
                     name: String::from(name),
                     inherent_type: UserUniformType::Int32,
                 });
             } else if type_str == "i64" {
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(value.as_i64().unwrap()),
                     name: String::from(name),
                     inherent_type: UserUniformType::Int64,
@@ -167,7 +168,7 @@ pub fn load_uniforms_from_json(data: &json::JsonValue) -> Vec<UserUniform> {
                     true => 1,
                     false => 0,
                 };
-                uniforms.push(UserUniform {
+                uniforms.insert(UserUniform {
                     bytes: convert_value_to_bytes(uint_value),
                     name: String::from(name),
                     inherent_type: UserUniformType::Bool,

@@ -235,7 +235,11 @@ impl Dashboard {
                 Err(_) => break,
             }
         }
-
+        for (_, uniform) in &self.state.gui_uniforms {
+            self.transmitter
+                .send(DashboardMessage::UniformUpdatedViaGUI(uniform.clone()))
+                .unwrap();
+        }
         if let Some(ref mut recorder) = self.recorder {
             if self.state.movie_framerate < 1 {
                 panic!("Invalid framerate {} provided!", self.state.movie_framerate);

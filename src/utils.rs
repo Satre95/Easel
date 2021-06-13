@@ -251,7 +251,7 @@ pub fn create_pipelines(
         topology: wgpu::PrimitiveTopology::TriangleList,
         cull_mode: None,
         polygon_mode: wgpu::PolygonMode::Fill,
-        conservative: true,
+        conservative: false,
         ..Default::default()
     };
     let multisample_state = wgpu::MultisampleState {

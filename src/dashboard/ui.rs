@@ -60,7 +60,7 @@ impl Dashboard {
             let open_painting_externally = &mut self.state.open_painting_externally;
             let pause_while_painting = &mut self.state.pause_while_painting;
             let shader_compilation_error_msg = self.state.shader_compilation_error_msg.as_ref();
-            let user_uniforms = &mut self.state.gui_uniforms.clone();
+            let user_uniforms = &mut self.state.gui_uniforms;
             let mut start_record_button_pressed = false;
             let mut stop_record_button_pressed = false;
             let recording_in_progress = &mut self.state.recording_in_progress;
@@ -211,8 +211,8 @@ impl Dashboard {
                             .open_on_double_click(true)
                             .build(&ui)
                         {
-                            for (_name, mut uniform) in user_uniforms {
-                                uniforms::update_user_uniform_ui(&ui, &mut uniform);
+                            for (_name, uniform) in user_uniforms {
+                                uniforms::update_user_uniform_ui(&ui, uniform);
                             }
                         }
                     }

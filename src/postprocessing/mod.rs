@@ -121,7 +121,7 @@ impl PostProcess {
                 cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 clamp_depth: false,
-                conservative: true,
+                conservative: false,
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -158,7 +158,7 @@ impl PostProcess {
                 cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 clamp_depth: false,
-                conservative: true,
+                conservative: false,
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -195,7 +195,7 @@ impl PostProcess {
                 cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 clamp_depth: false,
-                conservative: true,
+                conservative: false,
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {

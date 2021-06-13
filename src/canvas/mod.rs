@@ -4,6 +4,7 @@ use crate::uniforms::{Uniforms, UserUniform};
 use crate::vector::{IntVector2, IntVector4, UIntVector2, Vector2, Vector4};
 use crate::{dashboard::DashboardMessage, recording::MOVIE_TEXTURE_FORMAT};
 use chrono::Datelike;
+use std::collections::HashSet;
 use std::vec::Vec;
 use std::{
     num::NonZeroU64,
@@ -84,7 +85,7 @@ pub struct Canvas {
     /// Optional size of device buffer holding user-provided uniforms.
     user_uniforms_buffer_size: Option<usize>,
     /// Optional list of user-provided uniforms from JSON file.
-    user_uniforms: Vec<UserUniform>,
+    user_uniforms: HashSet<UserUniform>,
     /// Optional list of user-provided push constants from JSON file.
     // push_constants: Option<Vec<Box<dyn PushConstant>>>,
     bind_groups: [wgpu::BindGroup; 2],
@@ -136,7 +137,7 @@ impl Canvas {
         window: Window,
         fs_spirv_data: Vec<u8>,
         images: Option<Vec<image::DynamicImage>>,
-        user_uniforms: Option<Vec<UserUniform>>,
+        user_uniforms: Option<HashSet<UserUniform>>,
         // push_constants: Option<Vec<Box<dyn PushConstant>>>,
         transmitter: Sender<CanvasMessage>,
         receiver: Receiver<DashboardMessage>,
@@ -455,7 +456,7 @@ impl Canvas {
             user_uniforms_buffer_size: custom_size,
             user_uniforms: match user_uniforms {
                 Some(uni) => uni,
-                None => vec![],
+                None => HashSet::new(),
             },
             // push_constants,
             uniforms_device_buffer: u_buffer,
@@ -521,13 +522,7 @@ impl Canvas {
                 self.create_painting(resolution)
             }
             DashboardMessage::UniformUpdatedViaGUI(modified_uniform) => {
-                let user_uniforms = &mut self.user_uniforms;
-                if let Some(index) = user_uniforms
-                    .iter()
-                    .position(|uniform| uniform.name == modified_uniform.name)
-                {
-                    user_uniforms[index] = modified_uniform;
-                }
+                self.user_uniforms.insert(modified_uniform);
             }
             DashboardMessage::MovieRenderRequested(resolution) => {
                 self.create_movie_frame(resolution);
