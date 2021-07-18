@@ -6,6 +6,7 @@ use core::panic;
 use imgui::FontSource;
 use imgui_wgpu::RendererConfig;
 use imgui_winit_support;
+use log::info;
 use std::{
     sync::mpsc::{Receiver, Sender},
     time::Instant,
@@ -236,9 +237,13 @@ impl Dashboard {
             }
         }
         for (_, uniform) in &self.state.gui_uniforms {
-            self.transmitter
-                .send(DashboardMessage::UniformUpdatedViaGUI(uniform.clone()))
-                .unwrap();
+            let err = self
+                .transmitter
+                .send(DashboardMessage::UniformUpdatedViaGUI(uniform.clone()));
+            match err {
+                Ok(_) => {}
+                Err(msg) => info!("Dashboard hung up: {}", msg),
+            }
         }
         if let Some(ref mut recorder) = self.recorder {
             if self.state.movie_framerate < 1 {
@@ -267,14 +272,18 @@ impl Dashboard {
         }
 
         // Ping Canvas with the currently set painting res
-        self.transmitter
+        let err = self
+            .transmitter
             .send(DashboardMessage::PaintingResolutionUpdated(
                 UIntVector2::new(
                     self.state.painting_resolution.x as u32,
                     self.state.painting_resolution.y as u32,
                 ),
-            ))
-            .unwrap();
+            ));
+        match err {
+            Err(msg) => info!("Canvas hung up: {}", msg),
+            Ok(_) => {}
+        }
     }
 
     pub fn post_render(&mut self) {

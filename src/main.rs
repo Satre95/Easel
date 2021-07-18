@@ -332,10 +332,13 @@ fn main() {
                     ..
                 } => {
                     if window_id == dashboard.window.id() {
-                        *control_flow = ControlFlow::Exit
+                        // clear out all windows.
+                        drawables.clear();
                     } else {
                         drawables.remove(&window_id);
                     }
+                    // For now exit entire program if any window is closed.
+                    *control_flow = ControlFlow::Exit;
                 }
                 _ => {
                     if let Some(tx) = drawables.get(&window_id) {
